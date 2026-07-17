@@ -2,31 +2,20 @@
 <%- include('partials/navbar') %>
 
 <main class="container">
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card rounded-4">
-                <div class="card-body p-5">
-                    <h1 class="fw-bold text-center mb-5" style="color: var(--primary-teal);">Clinic Management</h1>
-                    
-                    <div class="row justify-content-center g-4">
-                        <div class="col-md-4">
-                            <button class="btn btn-primary btn-lg w-100 py-4 rounded-4 fw-bold shadow-sm h-100">
-                                📅 View All Appointments
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <button class="btn btn-outline-success btn-lg w-100 py-4 rounded-4 fw-bold shadow-sm h-100">
-                                🩺 Manage Pet Records
-                            </button>
-                        </div>
-                        <div class="col-md-4">
-                            <button class="btn btn-outline-secondary btn-lg w-100 py-4 rounded-4 fw-bold shadow-sm h-100">
-                                📊 Generate Monthly Report
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="row mt-5">
+        <div class="col-md-8 mx-auto">
+            <h1 class="mb-4 pb-2 border-bottom fw-bold" style="color: var(--primary-teal);">Staff Control Panel</h1>
+            <ul class="list-group list-group-flush fs-5">
+                <li class="list-group-item bg-transparent py-3">
+                    <a href="#" class="text-decoration-none text-dark fw-semibold">📅 Manage Appointments</a>
+                </li>
+                <li class="list-group-item bg-transparent py-3">
+                    <a href="#" class="text-decoration-none text-dark fw-semibold">👥 View User Directory</a>
+                </li>
+                <li class="list-group-item bg-transparent py-3">
+                    <a href="#" class="text-decoration-none text-dark fw-semibold">⚙️ System Settings</a>
+                </li>
+            </ul>
         </div>
     </div>
 </main>

@@ -64,6 +64,19 @@ app.get('/', (req, res) => {
     res.render('index');
 });
 
+// Register Page
+app.get('/register', (req, res) => {
+    res.render('register');
+});
+
+// Register Logic
+app.post('/register', async (req, res) => {
+    // Dummy registration logic for the skeleton
+    // TODO(security): Implement parameterized queries and password hashing (e.g. Argon2)
+    console.log("Dummy registration submitted");
+    res.redirect('/login');
+});
+
 // Login Page
 app.get('/login', (req, res) => {
     res.render('login');
@@ -72,19 +85,24 @@ app.get('/login', (req, res) => {
 // Login Logic
 app.post('/login', async (req, res) => {
     // Dummy logic for the skeleton
-    // TODO(security): Implement real authentication with parameterized queries
-    const email = req.body.email || '';
+    // TODO(security): Implement real authentication with parameterized queries and password hashing
+    const username = req.body.username || '';
+    const password = req.body.password || '';
+    const role = req.body.role || '';
     
     // Regenerate session to prevent session fixation attacks
     req.session.regenerate((err) => {
         if (err) return res.status(500).send("Session error");
         
-        if (email.includes('staff')) {
+        if (role === 'staff' && username === 'staff' && password === 'test') {
             req.session.role = 'staff';
             res.redirect('/staff-dashboard');
-        } else {
+        } else if (role === 'customer' && username === 'customer' && password === 'test') {
             req.session.role = 'customer';
             res.redirect('/customer-dashboard');
+        } else {
+            // If credentials fail, redirect back to /login
+            res.redirect('/login');
         }
     });
 });

@@ -1,34 +1,119 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
+<!-- Removed the navbar include here so we can achieve a true full-screen split layout -->
 
-<main class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card rounded-4 mt-5">
-                <div class="card-body p-4 p-md-5">
-                    <h2 class="text-center mb-4 fw-bold" style="color: var(--primary-teal);">Sign In</h2>
+<main class="container-fluid p-0 vh-100">
+    <div class="row g-0 h-100">
+        
+        <!-- Left Column: Branding -->
+        <div class="col-md-6 col-lg-7 d-none d-md-block position-relative" style="background: linear-gradient(135deg, #0d9488 0%, #042f2e 100%);">
+                 
+            <!-- Overlay Content -->
+            <div class="position-absolute top-50 start-50 translate-middle w-100 text-center text-white px-4">
+                <h1 class="display-3 fw-bold mb-3 text-shadow">Welcome to PetCenter</h1>
+                <p class="fs-4 fw-light text-shadow">Providing world-class care for your furry family members.</p>
+            </div>
+            
+            <!-- Convenient Back Button since we removed the navbar -->
+            <a href="/" class="position-absolute top-0 start-0 m-4 text-white text-decoration-none fw-semibold fs-5 text-shadow">
+                &larr; Back to Home
+            </a>
+        </div>
+        
+        <!-- Right Column: Login Form -->
+        <div class="col-md-6 col-lg-5 bg-white d-flex align-items-center justify-content-center px-4 py-5">
+            <div class="w-100" style="max-width: 450px;">
+                
+                <!-- Mobile Only Home Link -->
+                <a href="/" class="d-md-none text-teal text-decoration-none fw-semibold mb-4 d-inline-block">
+                    &larr; Back to Home
+                </a>
+
+                <h2 class="text-center mb-5 fw-bold" style="color: var(--primary-teal);">Sign In</h2>
+                
+                <!-- Tabs Navigation -->
+                <ul class="nav nav-tabs mb-4 border-0" id="loginTabs" role="tablist">
+                    <li class="nav-item w-50 text-center" role="presentation">
+                        <!-- Fixed data-bs-target and data-bs-toggle -->
+                        <button class="nav-link active w-100 fw-bold fs-5" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customer" type="button" role="tab" aria-controls="customer" aria-selected="true">Customer</button>
+                    </li>
+                    <li class="nav-item w-50 text-center" role="presentation">
+                        <button class="nav-link w-100 fw-bold fs-5" id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff" type="button" role="tab" aria-controls="staff" aria-selected="false">Staff</button>
+                    </li>
+                </ul>
+                
+                <!-- Tabs Content -->
+                <div class="tab-content" id="loginTabsContent">
                     
-                    <!-- TODO(security): Add CSRF token for production -->
-                    <form action="/login" method="POST">
-                        <div class="mb-4">
-                            <label for="email" class="form-label text-secondary fw-semibold">Email address</label>
-                            <input type="email" class="form-control form-control-lg bg-light border-0" id="email" name="email" required placeholder="name@example.com">
-                        </div>
-                        <div class="mb-5">
-                            <label for="password" class="form-label text-secondary fw-semibold">Password</label>
-                            <input type="password" class="form-control form-control-lg bg-light border-0" id="password" name="password" required placeholder="••••••••">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold">Login</button>
-                    </form>
-                    
-                    <div class="mt-4 text-center text-muted small p-3 bg-light rounded-3 border">
-                        <p class="mb-0"><strong>Demo:</strong> Use email containing 'staff' for Staff Dashboard, anything else for Customer Dashboard. Password can be 'test'.</p>
+                    <!-- Customer Tab -->
+                    <div class="tab-pane fade show active" id="customer" role="tabpanel" aria-labelledby="customer-tab">
+                        <!-- TODO(security): Add CSRF token for production -->
+                        <form action="/login" method="POST">
+                            <input type="hidden" name="role" value="customer">
+                            <div class="mb-4">
+                                <label for="customer-username" class="form-label text-secondary fw-semibold">Username</label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" id="customer-username" name="username" required placeholder="Enter username">
+                            </div>
+                            <div class="mb-5">
+                                <label for="customer-password" class="form-label text-secondary fw-semibold">Password</label>
+                                <input type="password" class="form-control form-control-lg bg-light border-0" id="customer-password" name="password" required placeholder="••••••••">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm mb-3">Login as Customer</button>
+                            
+                            <div class="text-center mt-3">
+                                <span class="text-muted">Don't have an account?</span> 
+                                <a href="/register" class="text-teal text-decoration-none fw-bold">Register here</a>
+                            </div>
+                        </form>
                     </div>
+                    
+                    <!-- Staff Tab -->
+                    <div class="tab-pane fade" id="staff" role="tabpanel" aria-labelledby="staff-tab">
+                        <!-- TODO(security): Add CSRF token for production -->
+                        <form action="/login" method="POST">
+                            <input type="hidden" name="role" value="staff">
+                            <div class="mb-4">
+                                <label for="staff-username" class="form-label text-secondary fw-semibold">Username</label>
+                                <input type="text" class="form-control form-control-lg bg-light border-0" id="staff-username" name="username" required placeholder="Enter username">
+                            </div>
+                            <div class="mb-5">
+                                <label for="staff-password" class="form-label text-secondary fw-semibold">Password</label>
+                                <input type="password" class="form-control form-control-lg bg-light border-0" id="staff-password" name="password" required placeholder="••••••••">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm">Login as Staff</button>
+                        </form>
+                    </div>
+                    
+                </div>
+                
+                <div class="mt-5 text-center text-muted small p-3 bg-light rounded-3 border">
+                    <p class="mb-0"><strong>Demo:</strong> Use username 'customer' / password 'test' for Customer, and username 'staff' / password 'test' for Staff.</p>
                 </div>
             </div>
         </div>
     </div>
 </main>
+
+<style>
+    /* Styling for active tabs to match the teal theme */
+    .nav-tabs .nav-link.active {
+        color: var(--primary-teal) !important;
+        border-bottom: 3px solid var(--primary-teal) !important;
+        background: transparent !important;
+    }
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border: none;
+        border-bottom: 3px solid transparent;
+    }
+    .nav-tabs .nav-link:hover {
+        border-color: transparent;
+        color: var(--primary-teal-hover);
+    }
+    
+    .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+</style>
 
 </body>
 </html>
