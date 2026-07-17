@@ -1,0 +1,34 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<main class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card rounded-4 mt-5">
+                <div class="card-body p-4 p-md-5">
+                    <h2 class="text-center mb-4 fw-bold" style="color: var(--primary-teal);">Sign In</h2>
+                    
+                    <!-- TODO(security): Add CSRF token for production -->
+                    <form action="/login" method="POST">
+                        <div class="mb-4">
+                            <label for="email" class="form-label text-secondary fw-semibold">Email address</label>
+                            <input type="email" class="form-control form-control-lg bg-light border-0" id="email" name="email" required placeholder="name@example.com">
+                        </div>
+                        <div class="mb-5">
+                            <label for="password" class="form-label text-secondary fw-semibold">Password</label>
+                            <input type="password" class="form-control form-control-lg bg-light border-0" id="password" name="password" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold">Login</button>
+                    </form>
+                    
+                    <div class="mt-4 text-center text-muted small p-3 bg-light rounded-3 border">
+                        <p class="mb-0"><strong>Demo:</strong> Use email containing 'staff' for Staff Dashboard, anything else for Customer Dashboard. Password can be 'test'.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>
