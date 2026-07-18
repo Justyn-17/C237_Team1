@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql');
 const session = require('express-session');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = 3000;
@@ -71,38 +72,72 @@ app.get('/register', (req, res) => {
 
 // Register Logic
 app.post('/register', async (req, res) => {
-    // Dummy registration logic for the skeleton
-    // TODO(security): Implement parameterized queries and password hashing (e.g. Argon2)
-    console.log("Dummy registration submitted");
-    res.redirect('/login');
+    const { name, phone, username, password, confirm_password } = req.body;
+
+    if (password !== confirm_password) {
+        return res.status(400).send("Passwords do not match. <a href='/register'>Try again</a>");
+    }
+
+    try {
+        const password_hash = await bcrypt.hash(password, 10);
+        const sql = "INSERT INTO users (name, phone, username, password_hash, role) VALUES (?, ?, ?, ?, 'customer')";
+        
+        db.query(sql, [name, phone, username, password_hash], (err, result) => {
+            if (err) {
+                console.error("Database error during registration:", err);
+                return res.status(500).send("An internal server error occurred during registration. Please try again later.");
+            }
+            res.redirect('/login');
+        });
+    } catch (error) {
+        console.error("Error during password hashing:", error);
+        res.status(500).send("An internal server error occurred.");
+    }
 });
 
 // Login Page
 app.get('/login', (req, res) => {
-    res.render('login');
+    res.render('login', { error: null });
 });
 
 // Login Logic
 app.post('/login', async (req, res) => {
-    // Dummy logic for the skeleton
-    // TODO(security): Implement real authentication with parameterized queries and password hashing
-    const username = req.body.username || '';
-    const password = req.body.password || '';
-    const role = req.body.role || '';
+    const { username, password } = req.body;
     
-    // Regenerate session to prevent session fixation attacks
-    req.session.regenerate((err) => {
-        if (err) return res.status(500).send("Session error");
+    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
+        if (err) {
+            console.error("Database error during login:", err);
+            return res.status(500).send("An internal server error occurred.");
+        }
+
+        if (results.length === 0) {
+            return res.render('login', { error: 'Invalid username or password.' });
+        }
+
+        const user = results[0];
         
-        if (role === 'staff' && username === 'staff' && password === 'test') {
-            req.session.role = 'staff';
-            res.redirect('/staff-dashboard');
-        } else if (role === 'customer' && username === 'customer' && password === 'test') {
-            req.session.role = 'customer';
-            res.redirect('/customer-dashboard');
-        } else {
-            // If credentials fail, redirect back to /login
-            res.redirect('/login');
+        try {
+            const match = await bcrypt.compare(password, user.password_hash);
+            
+            if (match) {
+                req.session.regenerate((err) => {
+                    if (err) return res.status(500).send("Session error");
+                    
+                    req.session.role = user.role;
+                    if (user.role === 'staff') {
+                        res.redirect('/staff-dashboard');
+                    } else if (user.role === 'customer') {
+                        res.redirect('/customer-dashboard');
+                    } else {
+                        res.redirect('/login');
+                    }
+                });
+            } else {
+                res.render('login', { error: 'Invalid username or password.' });
+            }
+        } catch (error) {
+            console.error("Error during password comparison:", error);
+            res.status(500).send("An internal server error occurred.");
         }
     });
 });
