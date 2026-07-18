@@ -1,0 +1,150 @@
+<%- include('partials/header') %>
+    <%- include('partials/navbar') %>
+
+        <main class="container">
+            <div class="row mt-5 justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card rounded-4 border-0 shadow-sm">
+                        <div class="card-body p-5">
+                            <h2 class="fw-bold text-center mb-4" style="color: var(--primary-teal);">Register New Pet
+                            </h2>
+
+                            <form action="/addpet" method="POST" enctype="multipart/form-data">
+                                <!-- Max length 50 chars to prevent typing whole paragraphs as a name -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-secondary">Pet Name</label>
+                                    <input type="text" name="name"
+                                        class="form-control form-control-lg bg-light border-0" maxlength="50" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-secondary">Species</label>
+                                    <select name="species" id="speciesSelect" class="form-select form-select-lg bg-light border-0" required>
+                                        <option value="" disabled selected>Select Species</option>
+                                        <option value="Dog">🐕 Dog</option>
+                                        <option value="Cat">🐈 Cat</option>
+                                        <option value="Bird">🐦 Bird</option>
+                                        <option value="Rabbit">🐰 Rabbit</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-secondary">Breed</label>
+                                    <select name="breed" id="breedSelect" class="form-select form-select-lg bg-light border-0" required>
+                                        <option value="" disabled selected>Select Breed</option>
+                                    </select>
+                                </div>
+
+                                <!-- Custom breed input for "Other" option -->
+                                <div class="mb-3" id="customBreedDiv" style="display: none;">
+                                    <label class="form-label fw-semibold text-secondary">Enter Custom Breed</label>
+                                    <input type="text" name="customBreed" id="customBreedInput"
+                                        class="form-control form-control-lg bg-light border-0" maxlength="50"
+                                        placeholder="e.g. Mixed Breed, Crossbreed">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-secondary">Gender</label>
+                                    <select name="gender" class="form-select form-select-lg bg-light border-0" required>
+                                        <option value="" disabled selected>Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Unknown">Unknown</option>
+                                    </select>
+                                </div>
+
+                                <!-- Age with decimal support for months -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-secondary">Age (in years)</label>
+                                    <input type="number" name="age" step="0.1" 
+                                        class="form-control form-control-lg bg-light border-0" min="0" max="50" 
+                                        placeholder="e.g. 2 or 0.5 (for 6 months)" required>
+                                    <div class="form-text">Use decimals for months: 0.5 = 6 months, 0.25 = 3 months, 0.08 = 1 month</div>
+                                </div>
+
+                                <!-- Optional pet photo, handled server-side by multer -->
+                                <div class="mb-4">
+                                    <label class="form-label fw-semibold text-secondary">Pet Photo (optional)</label>
+                                    <input type="file" name="photo" accept="image/png, image/jpeg, image/webp"
+                                        class="form-control form-control-lg bg-light border-0">
+                                    <div class="form-text">JPG, PNG, or WEBP, up to 2MB.</div>
+                                </div>
+
+                                <button type="submit"
+                                    class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm mb-3">
+                                    💾 Save Pet
+                                </button>
+                                <a href="/customer-dashboard"
+                                    class="btn btn-light btn-lg w-100 rounded-pill fw-bold text-secondary shadow-sm">
+                                    Cancel
+                                </a>
+                            </form>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script>
+            const breedOptions = {
+                Dog: ['Labrador Retriever', 'Golden Retriever', 'German Shepherd', 'Bulldog', 'Poodle', 'Beagle', 'Husky', 'Dachshund', 'Boxer', 'Corgi'],
+                Cat: ['Persian', 'Siamese', 'Maine Coon', 'British Shorthair', 'Bengal', 'Ragdoll', 'Sphynx', 'Scottish Fold', 'Tabby'],
+                Bird: ['Parrot', 'Cockatiel', 'Canary', 'Budgie (Parakeet)', 'Lovebird', 'Finch', 'Macaw'],
+                Rabbit: ['Holland Lop', 'Dwarf Hotot', 'Dutch Rabbit', 'Angora', 'Rex', 'Mini Lop', 'Lionhead']
+            };
+
+            const speciesSelect = document.getElementById('speciesSelect');
+            const breedSelect = document.getElementById('breedSelect');
+            const customBreedDiv = document.getElementById('customBreedDiv');
+            const customBreedInput = document.getElementById('customBreedInput');
+
+            speciesSelect.addEventListener('change', function() {
+                const selectedSpecies = this.value;
+                breedSelect.innerHTML = '<option value="" disabled selected>Select Breed</option>';
+                customBreedDiv.style.display = 'none';
+                customBreedInput.value = '';
+                customBreedInput.removeAttribute('required');
+
+                if (selectedSpecies && breedOptions[selectedSpecies]) {
+                    breedOptions[selectedSpecies].forEach(breed => {
+                        const option = document.createElement('option');
+                        option.value = breed;
+                        option.textContent = breed;
+                        breedSelect.appendChild(option);
+                    });
+
+                    // Add "Other" option
+                    const otherOption = document.createElement('option');
+                    otherOption.value = 'other';
+                    otherOption.textContent = '➕ Other (enter custom breed)';
+                    breedSelect.appendChild(otherOption);
+                }
+            });
+
+            breedSelect.addEventListener('change', function() {
+                if (this.value === 'other') {
+                    customBreedDiv.style.display = 'block';
+                    customBreedInput.setAttribute('required', 'required');
+                    customBreedInput.focus();
+                } else {
+                    customBreedDiv.style.display = 'none';
+                    customBreedInput.removeAttribute('required');
+                    customBreedInput.value = '';
+                }
+            });
+
+            // Form submission validation
+            document.querySelector('form').addEventListener('submit', function(e) {
+                if (breedSelect.value === 'other' && !customBreedInput.value.trim()) {
+                    e.preventDefault();
+                    alert('Please enter a custom breed or select one from the list.');
+                    customBreedInput.focus();
+                    return false;
+                }
+            });
+        </script>
+
+        </body>
+
+        </html>

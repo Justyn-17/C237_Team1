@@ -1,0 +1,90 @@
+<%- include('partials/header') %>
+    <%- include('partials/navbar') %>
+
+        <main class="container">
+            <div class="row mt-4 justify-content-center">
+                <div class="col-md-8 col-lg-6">
+
+                    <div class="card rounded-4 border-0 shadow-sm mb-4">
+                        <div class="card-body p-4 text-center">
+                            <img src="<%= photoPath(pet.photo) || 'https://placehold.co/120x120?text=No+Photo' %>"
+                                alt="<%= pet.name %>" class="rounded-4 shadow-sm mb-3"
+                                style="width: 120px; height: 120px; object-fit: cover;">
+                            <h2 class="fw-bold" style="color: var(--primary-teal);">🐾 <%= pet.name %></h2>
+                            <p class="text-muted mb-0"><%= pet.species %> &middot; <%= pet.breed || 'Unknown breed' %> &middot; <%= pet.gender %></p>
+                            <a href="/customer-dashboard" class="btn btn-light btn-sm mt-3">← Back to Dashboard</a>
+                        </div>
+                    </div>
+
+                    <div class="card rounded-4 border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <h4 class="fw-bold mb-3 text-dark">Care Records</h4>
+
+                            <!-- Filter by record type -->
+                            <div class="btn-group mb-3">
+                                <a href="/pets/view/<%= pet.id %>"
+                                    class="btn btn-sm <%= !typeFilter ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+                                <a href="/pets/view/<%= pet.id %>?type=Feeding"
+                                    class="btn btn-sm <%= typeFilter === 'Feeding' ? 'btn-primary' : 'btn-outline-primary' %>">Feeding</a>
+                                <a href="/pets/view/<%= pet.id %>?type=Vaccination"
+                                    class="btn btn-sm <%= typeFilter === 'Vaccination' ? 'btn-primary' : 'btn-outline-primary' %>">Vaccination</a>
+                                <a href="/pets/view/<%= pet.id %>?type=Medication"
+                                    class="btn btn-sm <%= typeFilter === 'Medication' ? 'btn-primary' : 'btn-outline-primary' %>">Medication</a>
+                            </div>
+
+                            <% if (records.length > 0) { %>
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% records.forEach(function(record) { %>
+                                            <tr>
+                                                <td><%= new Date(record.record_date).toLocaleDateString() %></td>
+                                                <td><span class="badge bg-secondary"><%= record.record_type %></span></td>
+                                                <td><%= record.description || '-' %></td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            <% } else { %>
+                                <p class="text-muted"><%= typeFilter ? `No ${typeFilter} records yet.` : 'No care records yet.' %></p>
+                            <% } %>
+
+                            <hr>
+
+                            <h5 class="fw-bold mb-3 text-dark">Add Care Record</h5>
+                            <form action="/pets/<%= pet.id %>/care-records" method="POST" class="row g-2">
+                                <div class="col-md-4">
+                                    <select name="record_type" class="form-select bg-light border-0" required>
+                                        <option value="" disabled selected>Type</option>
+                                        <option value="Feeding">Feeding</option>
+                                        <option value="Vaccination">Vaccination</option>
+                                        <option value="Medication">Medication</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="text" name="description" maxlength="255"
+                                        class="form-control bg-light border-0" placeholder="Description">
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="date" name="record_date" class="form-control bg-light border-0" required>
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="submit" class="btn btn-primary w-100">➕</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+
+        </body>
+
+        </html>
