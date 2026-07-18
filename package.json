@@ -1,9 +1,11 @@
 {
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "connect-flash": "^0.1.1",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "multer": "^2.2.0",
     "mysql": "^2.18.1",
     "mysql2": "^3.23.0"
   },

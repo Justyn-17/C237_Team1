@@ -1,0 +1,115 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<main class="container">
+  <div class="row mt-4 justify-content-center">
+    <div class="col-md-8 col-lg-7">
+      <div class="card rounded-4 border-0 shadow-sm">
+        <div class="card-body p-4 p-md-5">
+          <h2 class="mb-3 fw-bold" style="color: var(--primary-teal);">Book a New Appointment</h2>
+          <p class="text-muted mb-4">
+            Choose a pet, date, and a time slot. The system will prevent overlapping bookings for the same vet.
+          </p>
+
+          <form action="/appointments" method="POST">
+
+            <!-- Pet dropdown -->
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label text-secondary fw-semibold">Pet</label>
+                <select name="pet_id" class="form-select bg-light border-0" required>
+                  <option value="" disabled selected>Select a pet</option>
+                  <% pets.forEach(function(pet) { %>
+                    <option value="<%= pet.id %>">
+                      <%= pet.name %> (<%= pet.species %> <%= pet.breed ? '– ' + pet.breed : '' %>)
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label class="form-label text-secondary fw-semibold">Appointment Date</label>
+                <input type="date" name="date" class="form-control bg-light border-0" required>
+              </div>
+            </div>
+
+            <!-- Time slots: single specific time -->
+            <div class="mb-3">
+              <label class="form-label text-secondary fw-semibold">Time Slot</label>
+              <div class="d-flex flex-wrap gap-2">
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-10" value="10:00:00" required>
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-10">10:00 AM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-11" value="11:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-11">11:00 AM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-12" value="12:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-12">12:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-13" value="13:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-13">1:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-14" value="14:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-14">2:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-15" value="15:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-15">3:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-16" value="16:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-16">4:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-17" value="17:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-17">5:00 PM</label>
+                </div>
+
+                <div class="form-check">
+                  <input class="btn-check" type="radio" name="slot_time" id="slot-18" value="18:00:00">
+                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-18">6:00 PM</label>
+                </div>
+
+              </div>
+              <div class="form-text text-muted">
+                If a slot is already booked for this vet on that date, the system will reject it.
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label text-secondary fw-semibold">Reason / Notes</label>
+              <textarea name="reason" class="form-control bg-light border-0" rows="3"
+                        placeholder="Routine checkup, vaccination, grooming, etc."></textarea>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4">
+              <a href="/customer-dashboard" class="btn btn-outline-secondary rounded-pill px-4">
+                &larr; Back to Dashboard
+              </a>
+              <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4 fw-bold shadow-sm">
+                📅 Confirm Appointment
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
