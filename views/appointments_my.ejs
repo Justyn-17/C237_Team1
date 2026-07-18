@@ -1,0 +1,71 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<main class="container">
+  <div class="row mt-4">
+    <div class="col-md-10 mx-auto">
+      <h1 class="mb-4 fw-bold" style="color: var(--primary-teal);">
+        My Appointments
+      </h1>
+
+      <% if (appointments.length > 0) { %>
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Pet</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Reason</th>
+              <th>Status / Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% appointments.forEach(a => { %>
+              <tr>
+                <td>
+                  <strong><%= a.pet_name %></strong><br>
+                  <small class="text-muted"><%= a.pet_species %></small>
+                </td>
+                <td><%= new Date(a.date).toLocaleDateString() %></td>
+                <td>
+                  <% 
+                    // Make sure start_time is a string and drop the seconds
+                    const timeStr = String(a.start_time || '');
+                    const prettyTime = timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr;
+                  %>
+                  <%= prettyTime %>
+                </td>
+                <td><%= a.reason || '-' %></td>
+                <td>
+                  <span class="badge bg-secondary text-capitalize">
+                    <%= a.status %>
+                  </span>
+
+                  <% if (a.status === 'booked') { %>
+                    <form action="/appointments/<%= a.id %>/cancel" method="POST" class="d-inline ms-2"
+                          onsubmit="return confirm('Cancel this appointment?');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                        Cancel
+                      </button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <p class="text-muted">
+          You have not booked any appointments yet.
+        </p>
+      <% } %>
+
+      <a href="/appointments/new" class="btn btn-primary mt-3 rounded-pill px-4">
+        Book another appointment
+      </a>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
