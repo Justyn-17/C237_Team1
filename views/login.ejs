@@ -54,7 +54,7 @@
                     <div class="tab-pane fade show active" id="customer" role="tabpanel" aria-labelledby="customer-tab">
                         <!-- TODO(security): Add CSRF token for production -->
                         <form action="/login" method="POST">
-                            <input type="hidden" name="role" value="customer">
+                            <input type="hidden" name="expectedRole" value="customer">
                             <div class="mb-4">
                                 <label for="customer-username" class="form-label text-secondary fw-semibold">Username</label>
                                 <input type="text" class="form-control form-control-lg bg-light border-0" id="customer-username" name="username" required placeholder="Enter username">
@@ -76,7 +76,7 @@
                     <div class="tab-pane fade" id="staff" role="tabpanel" aria-labelledby="staff-tab">
                         <!-- TODO(security): Add CSRF token for production -->
                         <form action="/login" method="POST">
-                            <input type="hidden" name="role" value="staff">
+                            <input type="hidden" name="expectedRole" value="staff">
                             <div class="mb-4">
                                 <label for="staff-username" class="form-label text-secondary fw-semibold">Username</label>
                                 <input type="text" class="form-control form-control-lg bg-light border-0" id="staff-username" name="username" required placeholder="Enter username">

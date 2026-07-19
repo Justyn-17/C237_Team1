@@ -74,20 +74,13 @@ app.use((req, res, next) => {
     next();
 });
 
-// Simple role guards to avoid random re-logins
-function requireCustomer(req, res, next) {
-    if (req.session.role !== 'customer') {
+// Role-based access control middleware
+const requireRole = (role) => (req, res, next) => {
+    if (req.session.role !== role) {
         return res.redirect('/login');
     }
     next();
-}
-
-function requireStaff(req, res, next) {
-    if (req.session.role !== 'staff') {
-        return res.redirect('/login');
-    }
-    next();
-}
+};
 
 // DB connection (Azure MySQL)
 const db = mysql.createConnection({
@@ -104,6 +97,27 @@ db.connect((err) => {
         return;
     }
     console.log('Connected to Azure MySQL database.');
+});
+
+// Global Session Invalidation Middleware
+app.use((req, res, next) => {
+    if (req.session && req.session.username) {
+        db.query("SELECT status FROM users WHERE username = ?", [req.session.username], (err, results) => {
+            if (err) {
+                console.error("DB Error checking status:", err);
+                return next();
+            }
+            if (results.length > 0 && results[0].status !== 'active') {
+                req.session.destroy(() => {
+                    res.redirect('/login');
+                });
+            } else {
+                next();
+            }
+        });
+    } else {
+        next();
+    }
 });
 
 // ==========================================
@@ -158,7 +172,7 @@ app.get('/login', (req, res) => {
 
 // Login Logic (dummy)
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, expectedRole } = req.body;
 
     db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
         if (err) {
@@ -172,28 +186,52 @@ app.post('/login', async (req, res) => {
 
         const user = results[0];
 
+        // Boundary Check: Ensure the user's role matches the portal they are trying to log in from
+        if (expectedRole === 'staff' && (user.role !== 'staff' && user.role !== 'admin')) {
+            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+        }
+        if (expectedRole === 'customer' && user.role !== 'customer') {
+            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+        }
+
         try {
-            const match = await bcrypt.compare(password, user.password_hash);
+            // Trim whitespace in case the user accidentally copied trailing spaces
+            const cleanPassword = password.trim();
+            const match = await bcrypt.compare(cleanPassword, user.password_hash);
 
             if (match) {
-                req.session.regenerate((err) => {
+                // Return to ensure no further execution in this block
+                return req.session.regenerate((err) => {
                     if (err) return res.status(500).send("Session error");
 
                     req.session.role = user.role;
-                    if (user.role === 'staff') {
-                        res.redirect('/staff-dashboard');
-                    } else if (user.role === 'customer') {
-                        res.redirect('/customer-dashboard');
-                    } else {
-                        res.redirect('/login');
-                    }
+                    req.session.username = user.username;
+                    req.session.userId = user.id; // Helpful to store ID for DB queries
+                    
+                    // Explicitly save the session before redirecting to prevent race conditions
+                    req.session.save((saveErr) => {
+                        if (saveErr) return res.status(500).send("Session error");
+
+                        // Check boolean or MySQL tinyint (1)
+                        if (user.requires_password_reset === true || user.requires_password_reset === 1) {
+                            return res.redirect('/setup-password');
+                        }
+
+                        if (user.role === 'staff' || user.role === 'admin') {
+                            return res.redirect('/staff-dashboard');
+                        } else if (user.role === 'customer') {
+                            return res.redirect('/customer-dashboard');
+                        } else {
+                            return res.redirect('/login');
+                        }
+                    });
                 });
             } else {
-                res.render('login', { error: 'Invalid username or password.' });
+                return res.render('login', { error: 'Invalid username or password.' });
             }
         } catch (error) {
             console.error("Error during password comparison:", error);
-            res.status(500).send("An internal server error occurred.");
+            return res.status(500).send("An internal server error occurred.");
         }
     });
 });
@@ -207,7 +245,7 @@ app.get('/logout', (req, res) => {
 });
 
 // Customer Dashboard
-app.get('/customer-dashboard', requireCustomer, (req, res) => {
+app.get('/customer-dashboard', requireRole('customer'), (req, res) => {
     const sql = "SELECT * FROM pets";
 
     db.query(sql, (err, results) => {
@@ -227,29 +265,170 @@ app.get('/customer-dashboard', requireCustomer, (req, res) => {
 });
 
 // Staff Dashboard
-app.get('/staff-dashboard', requireStaff, (req, res) => {
+app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
     res.render('staff');
 });
 
-// Staff: View user directory (placeholder)
-app.get('/staff/users', requireStaff, (req, res) => {
-    res.send("User directory coming soon.");
+// Staff: View user directory
+app.get('/user-directory', requireRole('staff'), (req, res) => {
+    db.query("SELECT * FROM users", (err, results) => {
+        if (err) {
+            console.error("Error fetching users:", err);
+            return res.status(500).send("Database error");
+        }
+        res.render('user-directory', { 
+            users: results, 
+            currentUser: { username: req.session.username, role: req.session.role },
+            accessCode: null, 
+            newUsername: null 
+        });
+    });
 });
 
-// Staff: System settings (placeholder)
-app.get('/staff/settings', requireStaff, (req, res) => {
-    res.send("System settings coming soon.");
+// Staff: Create user
+app.post('/staff/create-user', requireRole('staff'), async (req, res) => {
+    const { name, username, phone } = req.body;
+    if (!name || !username || !phone) {
+         return res.status(400).send("Name, username, and phone are required");
+    }
+
+    try {
+        const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(accessCode, salt);
+
+        const sql = "INSERT INTO users (name, username, phone, password_hash, role, requires_password_reset) VALUES (?, ?, ?, ?, 'staff', true)";
+        db.query(sql, [name, username, phone, hashedPassword], (err, result) => {
+            if (err) {
+                console.error("Database error during staff creation:", err);
+                return res.status(500).send("Database error");
+            }
+            db.query("SELECT * FROM users", (err, results) => {
+                if (err) return res.status(500).send("Database error");
+                res.render('user-directory', { users: results, accessCode: accessCode, newUsername: username });
+            });
+        });
+    } catch (error) {
+         console.error("Error hashing password:", error);
+         res.status(500).send("Internal server error");
+    }
+});
+
+// Setup Password Routes
+app.get('/setup-password', (req, res) => {
+    if (!req.session.username) {
+        return res.redirect('/login');
+    }
+    db.query("SELECT requires_password_reset FROM users WHERE username = ?", [req.session.username], (err, results) => {
+         if (err || results.length === 0 || !results[0].requires_password_reset) {
+             return res.redirect('/');
+         }
+         res.render('setup-password', { error: null });
+    });
+});
+
+app.post('/setup-password', async (req, res) => {
+    if (!req.session.username) return res.redirect('/login');
+    
+    const { new_password, confirm_password } = req.body;
+    if (new_password !== confirm_password) {
+        return res.render('setup-password', { error: "Passwords do not match." });
+    }
+    if (new_password.length < 8) {
+        return res.render('setup-password', { error: "Password must be at least 8 characters long." });
+    }
+    
+    try {
+        const password_hash = await bcrypt.hash(new_password, 10);
+        const sql = "UPDATE users SET password_hash = ?, requires_password_reset = false WHERE username = ?";
+        
+        db.query(sql, [password_hash, req.session.username], (err, result) => {
+            if (err) {
+                console.error("Database error during password setup:", err);
+                return res.status(500).send("Database error");
+            }
+            if (req.session.role === 'staff') {
+                res.redirect('/staff-dashboard');
+            } else {
+                res.redirect('/customer-dashboard');
+            }
+        });
+    } catch (error) {
+        console.error("Error hashing password:", error);
+        res.status(500).send("Internal server error");
+    }
+});
+
+// Staff: System settings
+app.get('/staff/settings', requireRole('staff'), (req, res) => {
+    res.render('settings-coming-soon');
+});
+
+// ==========================================
+// SOFT DELETE WORKFLOW
+// ==========================================
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
+    db.query("UPDATE users SET status = 'deletion_requested' WHERE username = ?", [req.session.username], (err) => {
+        if (err) {
+            console.error("Error requesting deletion:", err);
+            return res.status(500).send("Database error");
+        }
+        req.session.destroy(() => {
+            res.redirect('/login');
+        });
+    });
+});
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
+    const targetId = req.params.id;
+    db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err) => {
+        if (err) {
+            console.error("Error approving deletion:", err);
+            return res.status(500).send("Database error");
+        }
+        res.redirect('/user-directory');
+    });
+});
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
+    if (req.session.username !== 'admin') {
+        return res.status(403).send("Forbidden: Only the system admin can delete staff accounts.");
+    }
+    
+    const targetId = req.params.id;
+    
+    // Prevent self-deletion if ID matches session (though we rely on username for the admin check)
+    // To be perfectly safe, we verify we aren't targeting the admin.
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (err, results) => {
+        if (err || results.length === 0) return res.status(500).send("User not found.");
+        
+        if (results[0].username === 'admin') {
+            return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
+        }
+        
+        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
+            if (err2) {
+                console.error("Error deleting staff:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.redirect('/user-directory');
+        });
+    });
 });
 
 // ==========================================
 // PET CRUD ROUTES
 // ==========================================
 
-app.get('/addpet', requireCustomer, (req, res) => {
+app.get('/addpet', requireRole('customer'), (req, res) => {
     res.render('addpet');
 });
 
-app.post('/addpet', requireCustomer, upload.single('photo'), (req, res) => {
+app.post('/addpet', requireRole('customer'), upload.single('photo'), (req, res) => {
     const petName = req.body.name;
     const petSpecies = req.body.species;
     let petBreed = req.body.breed;
@@ -280,7 +459,7 @@ app.post('/addpet', requireCustomer, upload.single('photo'), (req, res) => {
 });
 
 // View a pet + its care records
-app.get('/pets/view/:id', requireCustomer, (req, res) => {
+app.get('/pets/view/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     const CARE_RECORD_TYPES = ['Feeding', 'Vaccination', 'Medication'];
     const typeFilter = CARE_RECORD_TYPES.includes(req.query.type) ? req.query.type : null;
@@ -313,7 +492,7 @@ app.get('/pets/view/:id', requireCustomer, (req, res) => {
 });
 
 // Add a care record
-app.post('/pets/:id/care-records', requireCustomer, (req, res) => {
+app.post('/pets/:id/care-records', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     const recordType = req.body.record_type;
     const description = req.body.description;
@@ -334,7 +513,7 @@ app.post('/pets/:id/care-records', requireCustomer, (req, res) => {
 });
 
 // Edit pet GET
-app.get('/pets/edit/:id', requireCustomer, (req, res) => {
+app.get('/pets/edit/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     db.query("SELECT * FROM pets WHERE id = ?", [petId], (err, pets) => {
         if (err) {
@@ -352,7 +531,7 @@ app.get('/pets/edit/:id', requireCustomer, (req, res) => {
 });
 
 // Edit pet POST
-app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) => {
+app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req, res) => {
     const petId = req.params.id;
     const petName = req.body.name;
     const petSpecies = req.body.species;
@@ -391,7 +570,7 @@ app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) =
 });
 
 // Delete pet POST
-app.post('/pets/delete/:id', requireCustomer, (req, res) => {
+app.post('/pets/delete/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     const sql = "DELETE FROM pets WHERE id = ?";
 
@@ -409,7 +588,7 @@ app.post('/pets/delete/:id', requireCustomer, (req, res) => {
 // ==========================================
 
 // New appointment form – fetch pets for dropdown
-app.get('/appointments/new', requireCustomer, (req, res) => {
+app.get('/appointments/new', requireRole('customer'), (req, res) => {
     const sql = "SELECT id, name, species, breed FROM pets";
 
     db.query(sql, (err, pets) => {
@@ -422,7 +601,7 @@ app.get('/appointments/new', requireCustomer, (req, res) => {
 });
 
 // Create appointment with conflict checking (single time slot)
-app.post('/appointments', requireCustomer, (req, res) => {
+app.post('/appointments', requireRole('customer'), (req, res) => {
     const { pet_id, date, slot_time, reason } = req.body;
 
     const owner_id = 1; // demo customer
@@ -473,7 +652,7 @@ app.post('/appointments', requireCustomer, (req, res) => {
 });
 
 // Customer-specific list: appointments I've booked
-app.get('/appointments/my', requireCustomer, (req, res) => {
+app.get('/appointments/my', requireRole('customer'), (req, res) => {
     const owner_id = 1;
 
     const sql = `
@@ -534,7 +713,7 @@ app.get('/appointments', (req, res) => {
 });
 
 // Customer cancels one of their own appointments
-app.post('/appointments/:id/cancel', requireCustomer, (req, res) => {
+app.post('/appointments/:id/cancel', requireRole('customer'), (req, res) => {
     const appointmentId = req.params.id;
     const owner_id = 1; // TODO: use real logged-in user id
 
@@ -559,7 +738,7 @@ app.post('/appointments/:id/cancel', requireCustomer, (req, res) => {
 });
 
 // Staff marks appointment as completed
-app.post('/appointments/:id/complete', requireStaff, (req, res) => {
+app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
     const appointmentId = req.params.id;
     const vet_id = 2; // demo vet id
 

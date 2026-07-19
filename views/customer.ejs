@@ -67,6 +67,18 @@
               📅 Book New Appointment
             </a>
           </div>
+
+          <hr class="my-5 border-light">
+          
+          <div class="text-center">
+            <h5 class="text-muted mb-3">Account Settings</h5>
+            <!-- TODO(security): Implement CSRF protection for state-changing routes -->
+            <form action="/customer/request-deletion" method="POST" onsubmit="return confirm('Are you sure you want to request account deletion? This action cannot be undone.');">
+                <button type="submit" class="btn btn-outline-danger rounded-pill fw-semibold px-4">
+                  Request Account Deletion
+                </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
