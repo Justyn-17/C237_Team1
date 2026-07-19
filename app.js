@@ -285,6 +285,31 @@ app.get('/user-directory', requireRole('staff'), (req, res) => {
     });
 });
 
+// Staff: View all pets (across every owner)
+app.get('/staff/pets', requireRole('staff'), (req, res) => {
+    const sql = `
+        SELECT p.*, u.name AS owner_name
+        FROM pets p
+        LEFT JOIN users u ON p.owner_id = u.id
+        ORDER BY p.name
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error("Error fetching pets:", err);
+            return res.status(500).send("Database error");
+        }
+
+        results.forEach(p => {
+            if (p.photo && (p.photo.includes('\\') || /^[A-Za-z]:/.test(p.photo))) {
+                p.photo = `/uploads/pets/${path.basename(p.photo)}`;
+            }
+        });
+
+        res.render('staff-pets', { pets: results });
+    });
+});
+
 // Staff: Create user
 app.post('/staff/create-user', requireRole('staff'), async (req, res) => {
     const { name, username, phone } = req.body;
