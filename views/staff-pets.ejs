@@ -22,6 +22,7 @@
                     <th>Breed</th>
                     <th>Gender</th>
                     <th>Age</th>
+                    <th class="text-end">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -38,6 +39,10 @@
                       <td><%= pet.breed || 'Unknown' %></td>
                       <td><%= pet.gender %></td>
                       <td><%= pet.age %></td>
+                      <td class="text-end">
+                        <a href="/staff/pets/view/<%= pet.id %>"
+                           class="btn btn-info btn-sm text-white fw-semibold shadow-sm">📄 View Records</a>
+                      </td>
                     </tr>
                   <% }); %>
                 </tbody>
