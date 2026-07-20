@@ -142,7 +142,7 @@ app.get('/register', (req, res) => {
 
 // Register Logic (dummy)
 app.post('/register', async (req, res) => {
-    const { name, phone, username, password, confirm_password } = req.body;
+    const { name, phone, username, password, confirm_password, securityQuestion, securityAnswer } = req.body;
 
     if (password !== confirm_password) {
         return res.status(400).send("Passwords do not match. <a href='/register'>Try again</a>");
@@ -150,9 +150,10 @@ app.post('/register', async (req, res) => {
 
     try {
         const password_hash = await bcrypt.hash(password, 10);
-        const sql = "INSERT INTO users (name, phone, username, password_hash, role) VALUES (?, ?, ?, ?, 'customer')";
+        const security_answer_hash = securityAnswer ? await bcrypt.hash(securityAnswer, 10) : null;
+        const sql = "INSERT INTO users (name, phone, username, password_hash, role, security_question, security_answer_hash) VALUES (?, ?, ?, ?, 'customer', ?, ?)";
 
-        db.query(sql, [name, phone, username, password_hash], (err, result) => {
+        db.query(sql, [name, phone, username, password_hash, securityQuestion, security_answer_hash], (err, result) => {
             if (err) {
                 console.error("Database error during registration:", err);
                 return res.status(500).send("An internal server error occurred during registration. Please try again later.");
@@ -344,6 +345,9 @@ app.get('/setup-password', (req, res) => {
     if (!req.session.username) {
         return res.redirect('/login');
     }
+    if (req.session.resetAuthorized) {
+        return res.render('setup-password', { error: null });
+    }
     db.query("SELECT requires_password_reset FROM users WHERE username = ?", [req.session.username], (err, results) => {
          if (err || results.length === 0 || !results[0].requires_password_reset) {
              return res.redirect('/');
@@ -355,7 +359,7 @@ app.get('/setup-password', (req, res) => {
 app.post('/setup-password', async (req, res) => {
     if (!req.session.username) return res.redirect('/login');
     
-    const { new_password, confirm_password } = req.body;
+    const { new_password, confirm_password, securityQuestion, securityAnswer } = req.body;
     if (new_password !== confirm_password) {
         return res.render('setup-password', { error: "Passwords do not match." });
     }
@@ -365,14 +369,23 @@ app.post('/setup-password', async (req, res) => {
     
     try {
         const password_hash = await bcrypt.hash(new_password, 10);
-        const sql = "UPDATE users SET password_hash = ?, requires_password_reset = false WHERE username = ?";
+        const security_answer_hash = securityAnswer ? await bcrypt.hash(securityAnswer, 10) : null;
         
-        db.query(sql, [password_hash, req.session.username], (err, result) => {
+        let sql = "UPDATE users SET password_hash = ?, requires_password_reset = false WHERE username = ?";
+        let params = [password_hash, req.session.username];
+        
+        if (securityQuestion && securityAnswer) {
+            sql = "UPDATE users SET password_hash = ?, requires_password_reset = false, security_question = ?, security_answer_hash = ? WHERE username = ?";
+            params = [password_hash, securityQuestion, security_answer_hash, req.session.username];
+        }
+        
+        db.query(sql, params, (err, result) => {
             if (err) {
                 console.error("Database error during password setup:", err);
                 return res.status(500).send("Database error");
             }
-            if (req.session.role === 'staff') {
+            req.session.resetAuthorized = false; // clear reset authorization
+            if (req.session.role === 'staff' || req.session.role === 'admin') {
                 res.redirect('/staff-dashboard');
             } else {
                 res.redirect('/customer-dashboard');
@@ -383,6 +396,90 @@ app.post('/setup-password', async (req, res) => {
         res.status(500).send("Internal server error");
     }
 });
+
+// Forgot Password Flow
+app.get('/forgot-password', (req, res) => {
+    res.render('forgot-password', { error: null });
+});
+
+app.post('/forgot-password', (req, res) => {
+    const { username } = req.body;
+    if (username === 'admin') {
+        return res.render('forgot-password', { error: 'Action not allowed for this user.' });
+    }
+    db.query("SELECT * FROM users WHERE username = ?", [username], (err, results) => {
+        if (err || results.length === 0) {
+            return res.render('forgot-password', { error: 'User not found.' });
+        }
+        res.render('forgot-password-verify', { user: results[0], error: null });
+    });
+});
+
+app.post('/forgot-password/verify', async (req, res) => {
+    const { username, securityAnswer } = req.body;
+    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
+        if (err || results.length === 0) return res.render('forgot-password-verify', { user: { username }, error: 'User not found.' });
+        
+        const user = results[0];
+        
+        // Prevent admin reset
+        if (user.username === 'admin') {
+            return res.render('forgot-password-verify', { user, error: 'Action not allowed for this user.' });
+        }
+        
+        try {
+            const match = await bcrypt.compare(securityAnswer, user.security_answer_hash || '');
+            if (match) {
+                req.session.resetAuthorized = true;
+                req.session.resetUserId = user.id;
+                req.session.username = user.username;
+                req.session.role = user.role;
+                res.redirect('/setup-password');
+            } else {
+                res.render('forgot-password-verify', { user, error: 'Incorrect security answer.' });
+            }
+        } catch (error) {
+             console.error("Error verifying answer:", error);
+             res.render('forgot-password-verify', { user, error: 'An error occurred. Please try again.' });
+        }
+    });
+});
+
+// Admin-Assisted Reset Flow
+app.post('/staff/reset-user/:id', async (req, res) => {
+    if (req.session.role !== 'staff' && req.session.role !== 'admin') {
+        return res.status(403).send("Forbidden");
+    }
+    const targetUserId = req.params.id;
+    
+    db.query("SELECT * FROM users WHERE id = ?", [targetUserId], async (err, results) => {
+        if (err || results.length === 0) return res.status(404).send("User not found");
+        
+        const targetUser = results[0];
+        if (targetUser.username === 'admin') {
+            return res.status(403).send("Cannot reset the system admin account");
+        }
+        
+        const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
+        try {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(accessCode, salt);
+            
+            db.query("UPDATE users SET password_hash = ?, temp_access_code = ?, requires_password_reset = true WHERE id = ?", [hashedPassword, accessCode, targetUserId], (err) => {
+                if (err) return res.status(500).send("Database error");
+                
+                db.query("SELECT * FROM users", (err, users) => {
+                    if (err) return res.status(500).send("Database error");
+                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username });
+                });
+            });
+        } catch (error) {
+             console.error("Error hashing access code:", error);
+             res.status(500).send("Internal server error");
+        }
+    });
+});
+
 
 // Staff: System settings
 app.get('/staff/settings', requireRole('staff'), (req, res) => {
@@ -438,6 +535,34 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
         db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
             if (err2) {
                 console.error("Error deleting staff:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.redirect('/user-directory');
+        });
+    });
+});
+
+app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
+    if (req.session.username !== 'admin') {
+        return res.status(403).send("Forbidden: Only the system admin can delete customer accounts.");
+    }
+    
+    const targetId = req.params.id;
+    
+    db.query("SELECT username, role FROM users WHERE id = ?", [targetId], (err, results) => {
+        if (err || results.length === 0) return res.status(500).send("User not found.");
+        
+        if (results[0].username === 'admin') {
+            return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
+        }
+        
+        if (results[0].role !== 'customer') {
+            return res.status(400).send("Bad Request: User is not a customer.");
+        }
+        
+        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err2) => {
+            if (err2) {
+                console.error("Error deleting customer:", err2);
                 return res.status(500).send("Database error");
             }
             res.redirect('/user-directory');
