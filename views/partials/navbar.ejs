@@ -1,27 +1,65 @@
 <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-    <div class="container">
-        <a class="navbar-brand fw-bold fs-4" href="/">🐾 PetCenter</a>
-        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/">Home</a>
-                </li>
-                <% if (typeof role !== 'undefined' && role) { %>
-                    <li class="nav-item">
-                        <a class="nav-link px-3 fw-semibold text-white" href="<%= role === 'staff' ? '/staff-dashboard' : '/customer-dashboard' %>">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link px-3" href="/logout">Logout</a>
-                    </li>
-                <% } else { %>
-                    <li class="nav-item">
-                        <a class="nav-link px-3 fw-semibold text-white" href="/login">Login</a>
-                    </li>
-                <% } %>
-            </ul>
-        </div>
+  <div class="container">
+
+    <!-- Logo goes to dashboard if logged in, otherwise landing -->
+    <a class="navbar-brand fw-bold fs-4"
+       href="<%= role === 'staff' ? '/staff-dashboard' : role === 'customer' ? '/customer-dashboard' : '/' %>">
+      🐾 PetCenter
+    </a>
+
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+
+        <% if (!role) { %>
+          <!-- Guest: show Home + Login -->
+          <li class="nav-item">
+            <a class="nav-link px-3" href="/">
+              Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link px-3 fw-semibold text-white" href="/login">
+              Login
+            </a>
+          </li>
+        <% } else { %>
+          <!-- Logged-in: Dashboard first -->
+          <li class="nav-item">
+            <a class="nav-link px-3 fw-semibold text-white"
+               href="<%= role === 'staff' ? '/staff-dashboard' : '/customer-dashboard' %>">
+              Dashboard
+            </a>
+          </li>
+
+          <% if (role === 'customer') { %>
+            <li class="nav-item">
+              <a class="nav-link px-3" href="/appointments/new">Book Appointment</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link px-3" href="/appointments/my">My Appointments</a>
+            </li>
+          <% } else if (role === 'staff') { %>
+            <li class="nav-item">
+              <a class="nav-link px-3" href="/user-directory">User Management</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link px-3" href="/appointments">Appointments</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link px-3" href="/staff/pets">Pet Records</a>
+            </li>
+          <% } %>
+
+          <li class="nav-item">
+            <a class="nav-link px-3" href="/logout">Logout</a>
+          </li>
+        <% } %>
+
+      </ul>
     </div>
+  </div>
 </nav>

@@ -1,24 +1,102 @@
 <%- include('partials/header') %>
 <%- include('partials/navbar') %>
 
-<main class="container">
-    <div class="row mt-5">
-        <div class="col-md-8 mx-auto">
-            <h1 class="mb-4 pb-2 border-bottom fw-bold" style="color: var(--primary-teal);">Staff Control Panel</h1>
-            <ul class="list-group list-group-flush fs-5">
-                <li class="list-group-item bg-transparent py-3">
-                    <a href="#" class="text-decoration-none text-dark fw-semibold">📅 Manage Appointments</a>
-                </li>
-                <li class="list-group-item bg-transparent py-3">
-                    <a href="#" class="text-decoration-none text-dark fw-semibold">👥 View User Directory</a>
-                </li>
-                <li class="list-group-item bg-transparent py-3">
-                    <a href="#" class="text-decoration-none text-dark fw-semibold">⚙️ System Settings</a>
-                </li>
-            </ul>
-        </div>
+<main class="container py-5">
+  <div class="row mb-5 text-center">
+    <div class="col-12">
+      <h1 class="display-5 fw-bold" style="color: var(--primary-teal);">Welcome to the Staff Control Panel</h1>
+      <p class="text-muted fs-4">Select a module below to manage clinic operations</p>
     </div>
+  </div>
+
+  <div class="row g-4 justify-content-center">
+    
+    <!-- Manage Appointments Card -->
+    <div class="col-md-6 col-lg-4">
+      <a href="/appointments" class="text-decoration-none">
+        <div class="card h-100 border-0 rounded-4 shadow-sm dash-card">
+          <div class="card-body text-center p-5">
+            <div class="icon-wrapper rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background-color: #f0fdfa; color: #0d9488;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" class="bi bi-calendar-check" viewBox="0 0 16 16">
+                <path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+              </svg>
+            </div>
+            <h4 class="card-title fw-bold text-dark">Manage Appointments</h4>
+            <p class="card-text text-muted mt-2">View upcoming bookings and update appointment statuses.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- User Management Card -->
+    <div class="col-md-6 col-lg-4">
+      <a href="/user-directory" class="text-decoration-none">
+        <div class="card h-100 border-0 rounded-4 shadow-sm dash-card">
+          <div class="card-body text-center p-5">
+            <div class="icon-wrapper rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background-color: #f0fdfa; color: #0d9488;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
+                <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+              </svg>
+            </div>
+            <h4 class="card-title fw-bold text-dark">User Management</h4>
+            <p class="card-text text-muted mt-2">Manage staff accounts, generate new logins, and view users.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Pet Records Card -->
+    <div class="col-md-6 col-lg-4">
+      <a href="/staff/pets" class="text-decoration-none">
+        <div class="card h-100 border-0 rounded-4 shadow-sm dash-card">
+          <div class="card-body text-center p-5">
+            <div class="icon-wrapper rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background-color: #f0fdfa; color: #0d9488;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" class="bi bi-heart-pulse-fill" viewBox="0 0 16 16">
+                <path d="M8 1.314C3.5-3.5-4-.5 8 15 20-.5 12.5-3.5 8 1.314z"/>
+              </svg>
+            </div>
+            <h4 class="card-title fw-bold text-dark">Pet Records</h4>
+            <p class="card-text text-muted mt-2">View all registered pets and their owners.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- System Settings Card -->
+    <div class="col-md-6 col-lg-4">
+      <a href="/staff/settings" class="text-decoration-none">
+        <div class="card h-100 border-0 rounded-4 shadow-sm dash-card">
+          <div class="card-body text-center p-5">
+            <div class="icon-wrapper rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background-color: #f8fafc; color: #64748b;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" class="bi bi-gear-fill" viewBox="0 0 16 16">
+                <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+              </svg>
+            </div>
+            <h4 class="card-title fw-bold text-dark">System Settings</h4>
+            <p class="card-text text-muted mt-2">Configure system preferences and global clinic properties.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+  </div>
 </main>
+
+<style>
+  .dash-card {
+    transition: all 0.3s ease;
+  }
+  .dash-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+  }
+  .dash-card:hover .icon-wrapper {
+    background-color: #0d9488 !important;
+    color: white !important;
+    transition: all 0.3s ease;
+  }
+</style>
 
 </body>
 </html>

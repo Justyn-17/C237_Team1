@@ -1,0 +1,59 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<main class="container">
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card rounded-4 border-0 shadow-sm">
+        <div class="card-body p-5">
+          <h1 class="fw-bold text-center mb-5" style="color: var(--primary-teal);">All Pets</h1>
+
+          <% if (pets.length === 0) { %>
+            <p class="text-muted text-center">No pets have been registered yet.</p>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Photo</th>
+                    <th>Name</th>
+                    <th>Owner</th>
+                    <th>Species</th>
+                    <th>Breed</th>
+                    <th>Gender</th>
+                    <th>Age</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% pets.forEach(function(pet) { %>
+                    <tr>
+                      <td>
+                        <img src="<%= photoPath(pet.photo) || 'https://placehold.co/60x60?text=🐾' %>"
+                             alt="<%= pet.name %>" class="rounded-circle"
+                             style="width: 60px; height: 60px; object-fit: cover;">
+                      </td>
+                      <td class="fw-bold">🐾 <%= pet.name %></td>
+                      <td><%= pet.owner_name || 'Unknown' %></td>
+                      <td><%= pet.species %></td>
+                      <td><%= pet.breed || 'Unknown' %></td>
+                      <td><%= pet.gender %></td>
+                      <td><%= pet.age %></td>
+                      <td class="text-end">
+                        <a href="/staff/pets/view/<%= pet.id %>"
+                           class="btn btn-info btn-sm text-white fw-semibold shadow-sm">📄 View Records</a>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
