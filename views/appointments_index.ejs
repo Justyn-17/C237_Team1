@@ -1,6 +1,8 @@
 <%- include('partials/header') %>
 <%- include('partials/navbar') %>
 
+<% var admin = (typeof isAdmin !== 'undefined') && isAdmin; %>
+
 <main class="container mt-4">
 
   <div class="card rounded-4 border-0 shadow-sm">
@@ -9,10 +11,10 @@
       <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
         <div>
           <h2 class="mb-1 fw-bold" style="color: var(--primary-teal);">
-            Your Appointments
+            <%= admin ? 'All Appointments' : 'Your Appointments' %>
           </h2>
           <p class="text-muted mb-0">
-            View upcoming bookings and check their status.
+            <%= admin ? 'Every appointment across all vets.' : 'View upcoming bookings and check their status.' %>
           </p>
         </div>
 
@@ -21,6 +23,10 @@
             <a href="/appointments/new" class="btn btn-primary rounded-pill px-4 fw-bold">
               + New Appointment
             </a>
+          <% } else if (admin) { %>
+            <span class="badge bg-light text-teal border">
+              Admin view &middot; all vets
+            </span>
           <% } else if (role === 'staff') { %>
             <span class="badge bg-light text-teal border">
               Staff view &middot; showing appointments for this vet
@@ -29,12 +35,31 @@
         </div>
       </div>
 
+      <% if (role === 'staff') { %>
+        <% var currentStatus = (typeof statusFilter !== 'undefined') ? statusFilter : ''; %>
+        <div class="btn-group mb-3" role="group" aria-label="Filter by status">
+          <a href="/appointments"
+             class="btn btn-sm <%= currentStatus === '' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+          <a href="/appointments?status=booked"
+             class="btn btn-sm <%= currentStatus === 'booked' ? 'btn-primary' : 'btn-outline-primary' %>">Booked</a>
+          <a href="/appointments?status=completed"
+             class="btn btn-sm <%= currentStatus === 'completed' ? 'btn-primary' : 'btn-outline-primary' %>">Completed</a>
+          <a href="/appointments?status=cancelled"
+             class="btn btn-sm <%= currentStatus === 'cancelled' ? 'btn-primary' : 'btn-outline-primary' %>">Cancelled</a>
+        </div>
+      <% } %>
+
       <div class="table-responsive">
         <table class="table table-striped align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th scope="col">ID</th>
-              <th scope="col">Pet ID</th>
+              <th scope="col">Pet</th>
+              <% if (admin) { %>
+                <th scope="col">Owner</th>
+                <th scope="col">Vet</th>
+              <% } else { %>
+                <th scope="col"><%= role === 'staff' ? 'Owner' : 'Vet' %></th>
+              <% } %>
               <th scope="col">Date</th>
               <th scope="col">Time</th>
               <th scope="col">Status / Actions</th>
@@ -44,8 +69,13 @@
             <% if (appointments && appointments.length) { %>
               <% appointments.forEach(a => { %>
                 <tr>
-                  <td><span class="text-muted">#<%= a.id %></span></td>
-                  <td><%= a.pet_id %></td>
+                  <td><%= a.pet_name || ('#' + a.pet_id) %></td>
+                  <% if (admin) { %>
+                    <td><%= a.owner_name || '-' %></td>
+                    <td><%= a.vet_name || '-' %></td>
+                  <% } else { %>
+                    <td><%= role === 'staff' ? (a.owner_name || '-') : (a.vet_name || '-') %></td>
+                  <% } %>
                   <td>
                     <%= a.date && a.date.toISOString ? a.date.toISOString().slice(0, 10) : a.date %>
                   </td>
@@ -69,7 +99,7 @@
                       <span class="badge bg-secondary"><%= a.status %></span>
                     <% } %>
 
-                    <% if (role === 'staff' && a.status === 'booked') { %>
+                    <% if (role === 'staff' && !admin && a.status === 'booked') { %>
                       <form action="/appointments/<%= a.id %>/complete" method="POST" class="d-inline ms-2">
                         <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3">
                           Mark Completed
@@ -88,7 +118,7 @@
               <% }) %>
             <% } else { %>
               <tr>
-                <td colspan="5" class="text-center text-muted py-4">
+                <td colspan="<%= admin ? 6 : 5 %>" class="text-center text-muted py-4">
                   No appointments found yet.
                   <% if (role === 'customer') { %>
                     <br/>

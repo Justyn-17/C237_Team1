@@ -247,9 +247,9 @@ app.get('/logout', (req, res) => {
 
 // Customer Dashboard
 app.get('/customer-dashboard', requireRole('customer'), (req, res) => {
-    const sql = "SELECT * FROM pets";
+    const sql = "SELECT * FROM pets WHERE owner_id = ?";
 
-    db.query(sql, (err, results) => {
+    db.query(sql, [req.session.userId], (err, results) => {
         if (err) {
             console.error("Error fetching pets:", err);
             return res.status(500).send("Database error");
@@ -288,14 +288,32 @@ app.get('/user-directory', requireRole('staff'), (req, res) => {
 
 // Staff: View all pets (across every owner)
 app.get('/staff/pets', requireRole('staff'), (req, res) => {
+    // Search by pet or owner name, and optionally filter by species
+    const search = (req.query.q || '').trim();
+    const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit'];
+    const species = SPECIES.includes(req.query.species) ? req.query.species : '';
+
+    const where = [];
+    const params = [];
+
+    if (search) {
+        where.push('(p.name LIKE ? OR u.name LIKE ?)');
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    if (species) {
+        where.push('p.species = ?');
+        params.push(species);
+    }
+
     const sql = `
         SELECT p.*, u.name AS owner_name
         FROM pets p
         LEFT JOIN users u ON p.owner_id = u.id
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
         ORDER BY p.name
     `;
 
-    db.query(sql, (err, results) => {
+    db.query(sql, params, (err, results) => {
         if (err) {
             console.error("Error fetching pets:", err);
             return res.status(500).send("Database error");
@@ -307,7 +325,52 @@ app.get('/staff/pets', requireRole('staff'), (req, res) => {
             }
         });
 
-        res.render('staff-pets', { pets: results });
+        res.render('staff-pets', {
+            pets: results,
+            search,
+            species,
+            speciesOptions: SPECIES
+        });
+    });
+});
+
+// Staff: View a specific pet + its care records (read-only)
+app.get('/staff/pets/view/:id', requireRole('staff'), (req, res) => {
+    const petId = req.params.id;
+    const CARE_RECORD_TYPES = ['Feeding', 'Vaccination', 'Medication'];
+    const typeFilter = CARE_RECORD_TYPES.includes(req.query.type) ? req.query.type : null;
+
+    const petSql = `
+        SELECT p.*, u.name AS owner_name
+        FROM pets p
+        LEFT JOIN users u ON p.owner_id = u.id
+        WHERE p.id = ?
+    `;
+
+    db.query(petSql, [petId], (err, pets) => {
+        if (err) {
+            console.error("Error fetching pet:", err);
+            return res.status(500).send("Database error");
+        }
+        if (pets.length === 0) {
+            return res.status(404).send("Pet not found. <a href='/staff/pets'>Go back</a>");
+        }
+
+        const recordsSql = typeFilter
+            ? "SELECT * FROM care_records WHERE pet_id = ? AND record_type = ? ORDER BY record_date DESC"
+            : "SELECT * FROM care_records WHERE pet_id = ? ORDER BY record_date DESC";
+        const recordParams = typeFilter ? [petId, typeFilter] : [petId];
+
+        db.query(recordsSql, recordParams, (err, records) => {
+            if (err) {
+                console.error("Error fetching care records:", err);
+                return res.status(500).send("Database error");
+            }
+            if (pets[0].photo && (pets[0].photo.includes('\\') || /^[A-Za-z]:/.test(pets[0].photo))) {
+                pets[0].photo = `/uploads/pets/${path.basename(pets[0].photo)}`;
+            }
+            res.render('staff-viewpet', { pet: pets[0], records, typeFilter });
+        });
     });
 });
 
@@ -588,7 +651,7 @@ app.post('/addpet', requireRole('customer'), upload.single('photo'), (req, res) 
 
     const petGender = req.body.gender;
     const petAge = parseFloat(req.body.age);
-    const ownerId = 1;
+    const ownerId = req.session.userId;
     const petPhoto = req.file ? `/uploads/pets/${req.file.filename}` : null;
 
     if (!petName || !petSpecies || !petBreed || !petGender || !req.body.age) {
@@ -614,7 +677,7 @@ app.get('/pets/view/:id', requireRole('customer'), (req, res) => {
     const CARE_RECORD_TYPES = ['Feeding', 'Vaccination', 'Medication'];
     const typeFilter = CARE_RECORD_TYPES.includes(req.query.type) ? req.query.type : null;
 
-    db.query("SELECT * FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT * FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
@@ -652,11 +715,19 @@ app.post('/pets/:id/care-records', requireRole('customer'), (req, res) => {
         return res.status(400).send("Record type and date are required! <a href='/pets/view/" + petId + "'>Go back</a>");
     }
 
-    const sql = "INSERT INTO care_records (pet_id, record_type, description, record_date) VALUES (?, ?, ?, ?)";
-    db.query(sql, [petId, recordType, description, recordDate], (err) => {
+    // Only insert if this pet belongs to the logged-in customer
+    const sql = `
+        INSERT INTO care_records (pet_id, record_type, description, record_date)
+        SELECT ?, ?, ?, ?
+        FROM pets WHERE id = ? AND owner_id = ?
+    `;
+    db.query(sql, [petId, recordType, description, recordDate, petId, req.session.userId], (err, result) => {
         if (err) {
             console.error("Error adding care record:", err);
             return res.status(500).send("Database error");
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
         }
         res.redirect(`/pets/view/${petId}`);
     });
@@ -665,7 +736,7 @@ app.post('/pets/:id/care-records', requireRole('customer'), (req, res) => {
 // Edit pet GET
 app.get('/pets/edit/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
-    db.query("SELECT * FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT * FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
@@ -700,16 +771,19 @@ app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req
         return res.status(400).send("Invalid age! Age must be between 0 and 50 years. <a href='/pets/edit/" + petId + "'>Go back</a>");
     }
 
-    db.query("SELECT photo FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT photo FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
         }
+        if (pets.length === 0) {
+            return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
+        }
 
         const photoPath = req.file ? `/uploads/pets/${req.file.filename}` : pets[0].photo;
-        const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ?";
+        const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ? AND owner_id = ?";
 
-        db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId], (err2) => {
+        db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId, req.session.userId], (err2) => {
             if (err2) {
                 console.error("Error updating pet:", err2);
                 return res.status(500).send("Database error");
@@ -722,9 +796,9 @@ app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req
 // Delete pet POST
 app.post('/pets/delete/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
-    const sql = "DELETE FROM pets WHERE id = ?";
+    const sql = "DELETE FROM pets WHERE id = ? AND owner_id = ?";
 
-    db.query(sql, [petId], (err) => {
+    db.query(sql, [petId, req.session.userId], (err) => {
         if (err) {
             console.error("Error deleting pet:", err);
             return res.status(500).send("Database error");
@@ -744,10 +818,11 @@ app.get('/reminders', requireRole('customer'), (req, res) => {
         FROM reminders
         INNER JOIN pets
         ON reminders.pet_id = pets.id
+        WHERE pets.owner_id = ?
         ORDER BY due_date ASC
     `;
 
-    db.query(sql, (err, reminders) => {
+    db.query(sql, [req.session.userId], (err, reminders) => {
 
         if (err) {
             console.error("Error fetching reminders:", err);
@@ -794,7 +869,7 @@ app.get('/reminders', requireRole('customer'), (req, res) => {
 // Display Add Reminder Page
 app.get('/reminders/add', requireRole('customer'), (req, res) => {
 
-    db.query("SELECT id, name FROM pets", (err, pets) => {
+    db.query("SELECT id, name FROM pets WHERE owner_id = ?", [req.session.userId], (err, pets) => {
 
         if (err) {
             console.error(err);
@@ -820,10 +895,12 @@ app.post('/reminders/add', requireRole('customer'), (req, res) => {
         status
     } = req.body;
 
+    // Only insert if the chosen pet belongs to the logged-in customer
     const sql = `
         INSERT INTO reminders
         (pet_id, reminder_title, due_date, status)
-        VALUES (?, ?, ?, ?)
+        SELECT ?, ?, ?, ?
+        FROM pets WHERE id = ? AND owner_id = ?
     `;
 
     db.query(
@@ -832,13 +909,19 @@ app.post('/reminders/add', requireRole('customer'), (req, res) => {
             pet_id,
             reminder_title,
             due_date,
-            status
+            status,
+            pet_id,
+            req.session.userId
         ],
-        (err) => {
+        (err, result) => {
 
             if (err) {
                 console.error(err);
                 return res.status(500).send("Database error");
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(400).send("Invalid pet selected. <a href='/reminders/add'>Go back</a>");
             }
 
             res.redirect("/reminders");
@@ -855,8 +938,11 @@ app.get('/reminders/edit/:id', requireRole('customer'), (req, res) => {
     const reminderId = req.params.id;
 
     db.query(
-        "SELECT * FROM reminders WHERE id=?",
-        [reminderId],
+        `SELECT reminders.*
+         FROM reminders
+         INNER JOIN pets ON reminders.pet_id = pets.id
+         WHERE reminders.id = ? AND pets.owner_id = ?`,
+        [reminderId, req.session.userId],
         (err, reminder) => {
 
             if (err) {
@@ -864,8 +950,13 @@ app.get('/reminders/edit/:id', requireRole('customer'), (req, res) => {
                 return res.status(500).send("Database error");
             }
 
+            if (reminder.length === 0) {
+                return res.status(404).send("Reminder not found. <a href='/reminders'>Go back</a>");
+            }
+
             db.query(
-                "SELECT id,name FROM pets",
+                "SELECT id,name FROM pets WHERE owner_id = ?",
+                [req.session.userId],
                 (err, pets) => {
 
                     if (err) {
@@ -899,6 +990,8 @@ app.post('/reminders/edit/:id', requireRole('customer'), (req, res) => {
         status
     } = req.body;
 
+    // Guard: reminder must currently belong to one of this customer's pets,
+    // and the new pet_id must also belong to this customer.
     const sql = `
         UPDATE reminders
         SET
@@ -907,6 +1000,8 @@ app.post('/reminders/edit/:id', requireRole('customer'), (req, res) => {
             due_date=?,
             status=?
         WHERE id=?
+          AND pet_id IN (SELECT id FROM pets WHERE owner_id = ?)
+          AND ? IN (SELECT id FROM pets WHERE owner_id = ?)
     `;
 
     db.query(
@@ -916,13 +1011,20 @@ app.post('/reminders/edit/:id', requireRole('customer'), (req, res) => {
             reminder_title,
             due_date,
             status,
-            reminderId
+            reminderId,
+            req.session.userId,
+            pet_id,
+            req.session.userId
         ],
-        (err) => {
+        (err, result) => {
 
             if (err) {
                 console.error(err);
                 return res.status(500).send("Database error");
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).send("Reminder not found. <a href='/reminders'>Go back</a>");
             }
 
             res.redirect("/reminders");
@@ -939,8 +1041,10 @@ app.post('/reminders/delete/:id', requireRole('customer'), (req, res) => {
     const reminderId = req.params.id;
 
     db.query(
-        "DELETE FROM reminders WHERE id=?",
-        [reminderId],
+        `DELETE FROM reminders
+         WHERE id=?
+           AND pet_id IN (SELECT id FROM pets WHERE owner_id = ?)`,
+        [reminderId, req.session.userId],
         (err) => {
 
             if (err) {
@@ -988,77 +1092,117 @@ app.get('/staff/reminders', requireRole('staff'), (req, res) => {
 
 // New appointment form – fetch pets for dropdown
 app.get('/appointments/new', requireRole('customer'), (req, res) => {
-    const sql = "SELECT id, name, species, breed FROM pets";
+    const petsSql = "SELECT id, name, species, breed FROM pets WHERE owner_id = ?";
 
-    db.query(sql, (err, pets) => {
+    db.query(petsSql, [req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pets for appointments:", err);
             return res.status(500).send("Database error");
         }
-        res.render('appointments_new', { pets });
+
+        // Available vets = active staff users the customer can book with.
+        // The system 'admin' account has role 'staff' too, so exclude it by username.
+        const vetsSql = `
+            SELECT id, name
+            FROM users
+            WHERE role = 'staff' AND status = 'active' AND username <> 'admin'
+            ORDER BY name
+        `;
+        db.query(vetsSql, (err2, vets) => {
+            if (err2) {
+                console.error("Error fetching vets for appointments:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.render('appointments_new', { pets, vets });
+        });
     });
 });
 
 // Create appointment with conflict checking (single time slot)
 app.post('/appointments', requireRole('customer'), (req, res) => {
-    const { pet_id, date, slot_time, reason } = req.body;
+    const { pet_id, vet_id, date, slot_time, reason } = req.body;
 
-    const owner_id = 1; // demo customer
-    const vet_id = 2;   // demo vet
+    const owner_id = req.session.userId; // logged-in customer
 
-    if (!pet_id || !date || !slot_time) {
-        return res.status(400).send("Pet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
+    if (!pet_id || !vet_id || !date || !slot_time) {
+        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
     const start_time = slot_time;
     const end_time = slot_time;
 
-    const conflictSql = `
-        SELECT id
-        FROM appointments
-        WHERE vet_id = ?
-          AND date = ?
-          AND NOT (end_time <= ? OR start_time >= ?)
-    `;
+    // Validate the selected vet is a real active staff user (not the system admin)
+    db.query(
+        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
+        [vet_id],
+        (errVet, vets) => {
+            if (errVet) {
+                console.error('Vet validation error:', errVet);
+                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
+            }
+            if (vets.length === 0) {
+                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
+            }
 
-    db.query(conflictSql, [vet_id, date, start_time, end_time], (err, rows) => {
-        if (err) {
-            console.error('Conflict check error:', err);
-            return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
-        }
+            // Slots are discrete one-hour times: a slot clashes only with a
+            // non-cancelled booking for the SAME vet, date and start time.
+            const conflictSql = `
+                SELECT id
+                FROM appointments
+                WHERE vet_id = ?
+                  AND date = ?
+                  AND start_time = ?
+                  AND status <> 'cancelled'
+            `;
 
-        if (rows.length > 0) {
-            return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
-        }
-
-        const insertSql = `
-            INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'booked')
-        `;
-        db.query(
-            insertSql,
-            [pet_id, owner_id, vet_id, date, start_time, end_time, reason],
-            (err2) => {
-                if (err2) {
-                    console.error('Insert appointment error:', err2);
-                    return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
+                if (err) {
+                    console.error('Conflict check error:', err);
+                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
                 }
 
-                res.redirect('/appointments/my');
-            }
-        );
-    });
+                if (rows.length > 0) {
+                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
+                }
+
+                // Only book if the chosen pet belongs to the logged-in customer
+                const insertSql = `
+                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
+                    FROM pets WHERE id = ? AND owner_id = ?
+                `;
+                db.query(
+                    insertSql,
+                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
+                    (err2, result) => {
+                        if (err2) {
+                            console.error('Insert appointment error:', err2);
+                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+                        }
+
+                        if (result.affectedRows === 0) {
+                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
+                        }
+
+                        res.redirect('/appointments/my');
+                    }
+                );
+            });
+        }
+    );
 });
 
 // Customer-specific list: appointments I've booked
 app.get('/appointments/my', requireRole('customer'), (req, res) => {
-    const owner_id = 1;
+    const owner_id = req.session.userId;
 
     const sql = `
         SELECT a.id, a.date, a.start_time, a.end_time, a.status, a.reason,
-               p.name AS pet_name, p.species AS pet_species
+               p.name AS pet_name, p.species AS pet_species,
+               v.name AS vet_name
         FROM appointments a
         JOIN pets p ON a.pet_id = p.id
+        LEFT JOIN users v ON a.vet_id = v.id
         WHERE a.owner_id = ?
         ORDER BY a.date, a.start_time
     `;
@@ -1079,24 +1223,51 @@ app.get('/appointments', (req, res) => {
         return res.redirect('/login');
     }
 
+    // Optional status filter (used by the staff view: Booked / Completed / Cancelled)
+    const STATUSES = ['booked', 'completed', 'cancelled'];
+    const statusFilter = STATUSES.includes(req.query.status) ? req.query.status : '';
+
+    // The system admin oversees every appointment across all vets;
+    // a regular staff member (vet) only sees the ones assigned to them.
+    const isAdmin = req.session.username === 'admin';
+
     let sql;
     let params;
 
     if (req.session.role === 'customer') {
         sql = `
-            SELECT *
-            FROM appointments
-            ORDER BY date, start_time
+            SELECT a.*, p.name AS pet_name, v.name AS vet_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users v ON a.vet_id = v.id
+            WHERE a.owner_id = ?
+              ${statusFilter ? 'AND a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
         `;
-        params = [];
+        params = statusFilter ? [req.session.userId, statusFilter] : [req.session.userId];
+    } else if (isAdmin) {
+        // All appointments, with both the owner and the assigned vet.
+        sql = `
+            SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users o ON a.owner_id = o.id
+            LEFT JOIN users v ON a.vet_id = v.id
+            ${statusFilter ? 'WHERE a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
+        `;
+        params = statusFilter ? [statusFilter] : [];
     } else if (req.session.role === 'staff') {
         sql = `
-            SELECT *
-            FROM appointments
-            WHERE vet_id = ?
-            ORDER BY date, start_time
+            SELECT a.*, p.name AS pet_name, o.name AS owner_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users o ON a.owner_id = o.id
+            WHERE a.vet_id = ?
+              ${statusFilter ? 'AND a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
         `;
-        params = [2];
+        params = statusFilter ? [req.session.userId, statusFilter] : [req.session.userId];
     } else {
         return res.status(403).send("Forbidden.");
     }
@@ -1107,39 +1278,47 @@ app.get('/appointments', (req, res) => {
             return res.status(500).send("Could not load appointments.");
         }
 
-        res.render('appointments_index', { appointments: rows });
+        res.render('appointments_index', { appointments: rows, statusFilter, isAdmin });
     });
 });
 
 // Customer cancels one of their own appointments
-app.post('/appointments/:id/cancel', requireRole('customer'), (req, res) => {
+app.post('/appointments/:id/cancel', (req, res) => {
     const appointmentId = req.params.id;
-    const owner_id = 1; // TODO: use real logged-in user id
+    const role = req.session.role;
 
-    const sql = `
-        UPDATE appointments
-        SET status = 'cancelled'
-        WHERE id = ? AND owner_id = ?
-    `;
+    // A customer may cancel their own booking; a vet may cancel one assigned to them.
+    let sql, params, redirectTo;
+    if (role === 'customer') {
+        sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND owner_id = ?";
+        params = [appointmentId, req.session.userId];
+        redirectTo = '/appointments/my';
+    } else if (role === 'staff' || role === 'admin') {
+        sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND vet_id = ?";
+        params = [appointmentId, req.session.userId];
+        redirectTo = '/appointments';
+    } else {
+        return res.redirect('/login');
+    }
 
-    db.query(sql, [appointmentId, owner_id], (err, result) => {
+    db.query(sql, params, (err, result) => {
         if (err) {
             console.error('Cancel appointment error:', err);
             return res.status(500).send("Could not cancel appointment.");
         }
 
         if (result.affectedRows === 0) {
-            return res.status(404).send("Appointment not found or not owned by you.");
+            return res.status(404).send("Appointment not found or not yours to cancel.");
         }
 
-        res.redirect('/appointments/my');
+        res.redirect(redirectTo);
     });
 });
 
 // Staff marks appointment as completed
 app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
     const appointmentId = req.params.id;
-    const vet_id = 2; // demo vet id
+    const vet_id = req.session.userId; // the logged-in vet
 
     const sql = `
         UPDATE appointments

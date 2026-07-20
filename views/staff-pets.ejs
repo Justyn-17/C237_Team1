@@ -6,10 +6,38 @@
     <div class="col-12">
       <div class="card rounded-4 border-0 shadow-sm">
         <div class="card-body p-5">
-          <h1 class="fw-bold text-center mb-5" style="color: var(--primary-teal);">All Pets</h1>
+          <h1 class="fw-bold text-center mb-4" style="color: var(--primary-teal);">All Pets</h1>
+
+          <!-- Search & filter -->
+          <form class="row g-2 justify-content-center mb-4" method="GET" action="/staff/pets">
+            <div class="col-md-5">
+              <input type="text" name="q" value="<%= typeof search !== 'undefined' ? search : '' %>"
+                     class="form-control" placeholder="Search by pet or owner name">
+            </div>
+            <div class="col-md-3">
+              <select name="species" class="form-select">
+                <option value="">All species</option>
+                <% (typeof speciesOptions !== 'undefined' ? speciesOptions : []).forEach(function(s) { %>
+                  <option value="<%= s %>" <%= (typeof species !== 'undefined' && species === s) ? 'selected' : '' %>><%= s %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-primary w-100">🔍 Search</button>
+            </div>
+            <div class="col-md-2">
+              <a href="/staff/pets" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+          </form>
 
           <% if (pets.length === 0) { %>
-            <p class="text-muted text-center">No pets have been registered yet.</p>
+            <p class="text-muted text-center">
+              <% if ((typeof search !== 'undefined' && search) || (typeof species !== 'undefined' && species)) { %>
+                No pets match your search.
+              <% } else { %>
+                No pets have been registered yet.
+              <% } %>
+            </p>
           <% } else { %>
             <div class="table-responsive">
               <table class="table align-middle">
