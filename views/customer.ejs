@@ -57,24 +57,34 @@
             </div>
           <% } %>
 
-          <div class="d-flex justify-content-center gap-3">
+          <div class="d-flex justify-content-center gap-3 flex-wrap">
             <a href="/addpet"
                class="btn btn-primary btn-lg rounded-pill fw-bold shadow-sm px-4">
               ➕ Register New Pet
             </a>
+
             <a href="/appointments/new"
                class="btn btn-secondary btn-lg rounded-pill fw-bold shadow-sm px-4">
               📅 Book New Appointment
             </a>
+
+            <!-- Student E: Care Reminders -->
+            <a href="/reminders"
+               class="btn btn-success btn-lg rounded-pill fw-bold shadow-sm px-4">
+              🔔 Care Reminders
+            </a>
           </div>
 
           <hr class="my-5 border-light">
-          
+
           <div class="text-center">
             <h5 class="text-muted mb-3">Account Settings</h5>
+
             <!-- TODO(security): Implement CSRF protection for state-changing routes -->
-            <form action="/customer/request-deletion" method="POST" onsubmit="return confirm('Are you sure you want to request account deletion? This action cannot be undone.');">
-                <button type="submit" class="btn btn-outline-danger rounded-pill fw-semibold px-4">
+            <form action="/customer/request-deletion" method="POST"
+                  onsubmit="return confirm('Are you sure you want to request account deletion? This action cannot be undone.');">
+                <button type="submit"
+                        class="btn btn-outline-danger rounded-pill fw-semibold px-4">
                   Request Account Deletion
                 </button>
             </form>

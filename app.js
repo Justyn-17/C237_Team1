@@ -607,7 +607,256 @@ app.post('/pets/delete/:id', requireRole('customer'), (req, res) => {
         res.redirect('/customer-dashboard');
     });
 });
+// ==========================================
+// CARE REMINDERS ROUTES
+// ==========================================
 
+// Customer - View all reminders
+app.get('/reminders', requireRole('customer'), (req, res) => {
+
+    const sql = `
+        SELECT reminders.*, pets.name AS pet_name
+        FROM reminders
+        INNER JOIN pets
+        ON reminders.pet_id = pets.id
+        ORDER BY due_date ASC
+    `;
+
+    db.query(sql, (err, reminders) => {
+
+        if (err) {
+            console.error("Error fetching reminders:", err);
+            return res.status(500).send("Database error");
+        }
+
+        const today = new Date();
+
+        reminders.forEach(reminder => {
+
+            const dueDate = new Date(reminder.due_date);
+
+            today.setHours(0, 0, 0, 0);
+            dueDate.setHours(0, 0, 0, 0);
+
+            const diffDays = Math.ceil(
+                (dueDate - today) / (1000 * 60 * 60 * 24)
+            );
+
+            if (reminder.status === "Completed") {
+                reminder.displayStatus = "Completed";
+            }
+            else if (diffDays < 0) {
+                reminder.displayStatus = "Overdue";
+            }
+            else if (diffDays === 0) {
+                reminder.displayStatus = "Due Today";
+            }
+            else {
+                reminder.displayStatus = "Upcoming";
+            }
+
+        });
+
+        res.render("reminders", {
+            reminders
+        });
+
+    });
+
+});
+
+
+// Display Add Reminder Page
+app.get('/reminders/add', requireRole('customer'), (req, res) => {
+
+    db.query("SELECT id, name FROM pets", (err, pets) => {
+
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Database error");
+        }
+
+        res.render("addReminder", {
+            pets
+        });
+
+    });
+
+});
+
+
+// Add Reminder
+app.post('/reminders/add', requireRole('customer'), (req, res) => {
+
+    const {
+        pet_id,
+        reminder_title,
+        due_date,
+        status
+    } = req.body;
+
+    const sql = `
+        INSERT INTO reminders
+        (pet_id, reminder_title, due_date, status)
+        VALUES (?, ?, ?, ?)
+    `;
+
+    db.query(
+        sql,
+        [
+            pet_id,
+            reminder_title,
+            due_date,
+            status
+        ],
+        (err) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Edit Reminder Page
+app.get('/reminders/edit/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    db.query(
+        "SELECT * FROM reminders WHERE id=?",
+        [reminderId],
+        (err, reminder) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            db.query(
+                "SELECT id,name FROM pets",
+                (err, pets) => {
+
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).send("Database error");
+                    }
+
+                    res.render("editReminder", {
+                        reminder: reminder[0],
+                        pets
+                    });
+
+                }
+            );
+
+        }
+    );
+
+});
+
+
+// Update Reminder
+app.post('/reminders/edit/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    const {
+        pet_id,
+        reminder_title,
+        due_date,
+        status
+    } = req.body;
+
+    const sql = `
+        UPDATE reminders
+        SET
+            pet_id=?,
+            reminder_title=?,
+            due_date=?,
+            status=?
+        WHERE id=?
+    `;
+
+    db.query(
+        sql,
+        [
+            pet_id,
+            reminder_title,
+            due_date,
+            status,
+            reminderId
+        ],
+        (err) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Delete Reminder
+app.post('/reminders/delete/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    db.query(
+        "DELETE FROM reminders WHERE id=?",
+        [reminderId],
+        (err) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Staff - View All Reminders
+app.get('/staff/reminders', requireRole('staff'), (req, res) => {
+
+    const sql = `
+        SELECT reminders.*,
+               pets.name AS pet_name
+        FROM reminders
+        INNER JOIN pets
+        ON reminders.pet_id = pets.id
+        ORDER BY due_date ASC
+    `;
+
+    db.query(sql, (err, reminders) => {
+
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Database error");
+        }
+
+        res.render("reminders", {
+            reminders
+        });
+
+    });
+
+});
 // ==========================================
 // APPOINTMENTS ROUTES
 // ==========================================
