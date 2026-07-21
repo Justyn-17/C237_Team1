@@ -1,122 +1,98 @@
 <%- include('partials/header') %>
 
-<div class="staff-shell">
-  <%- include('partials/staff-sidebar', { activePage: 'reminders' }) %>
-  <main class="staff-main">
-    <div class="container-fluid p-4">
-      <main class="container">
-    <div class="row justify-content-center mt-4">
-        <div class="col-md-8">
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'reminders' }) %>
 
-            <div class="card shadow rounded-4 border-0">
-                <div class="card-body p-5">
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
 
-                    <h2 class="text-center fw-bold mb-4" style="color: var(--primary-teal);">
-                        🔔 Add Care Reminder
-                    </h2>
+    <div class="app-content">
 
-                    <form action="/reminders/add" method="POST">
-
-                        <!-- Pet -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Select Pet
-                            </label>
-
-                            <select
-                                name="pet_id"
-                                class="form-select"
-                                required>
-
-                                <option value="">-- Select Pet --</option>
-
-                                <% pets.forEach(function(pet){ %>
-
-                                    <option value="<%= pet.id %>">
-                                        <%= pet.name %>
-                                    </option>
-
-                                <% }) %>
-
-                            </select>
-                        </div>
-
-                        <!-- Reminder Title -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Reminder Title
-                            </label>
-
-                            <input
-                                type="text"
-                                name="reminder_title"
-                                class="form-control"
-                                placeholder="e.g. Vaccination"
-                                required>
-                        </div>
-
-                        <!-- Due Date -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Due Date
-                            </label>
-
-                            <input
-                                type="date"
-                                name="due_date"
-                                class="form-control"
-                                required>
-                        </div>
-
-                        <!-- Status -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">
-                                Status
-                            </label>
-
-                            <select
-                                name="status"
-                                class="form-select">
-
-                                <option value="Pending">
-                                    Pending
-                                </option>
-
-                                <option value="Completed">
-                                    Completed
-                                </option>
-
-                            </select>
-                        </div>
-
-                        <div class="d-flex justify-content-center gap-3">
-
-                            <button
-                                type="submit"
-                                class="btn btn-success rounded-pill px-4 fw-bold">
-
-                                💾 Save Reminder
-
-                            </button>
-
-                            <a
-                                href="/reminders"
-                                class="btn btn-secondary rounded-pill px-4 fw-bold">
-
-                                Cancel
-
-                            </a>
-
-                        </div>
-
-                    </form>
-
-                </div>
-            </div>
-
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Add a <span class="accent">Care Reminder</span></h1>
+          <p class="page-sub">Set a due date and we'll flag it as upcoming, due today, or overdue.</p>
         </div>
-    </div>
-</main>
+        <a href="/reminders" class="btn btn-outline-secondary rounded-pill px-4">
+          <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="panel">
+            <div class="panel-body">
+              <form action="/reminders/add" method="POST">
+                <div class="form-section-title">Reminder details</div>
+
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Pet</label>
+                    <select name="pet_id" class="form-select app-input" required>
+                      <option value="">Select a pet</option>
+                      <% pets.forEach(function(pet){ %>
+                        <option value="<%= pet.id %>"><%= pet.name %></option>
+                      <% }) %>
+                    </select>
+                    <% if (pets.length === 0) { %>
+                      <div class="form-text text-danger">
+                        No pets yet — <a href="/addpet">register one first</a>.
+                      </div>
+                    <% } %>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Due Date</label>
+                    <input type="date" name="due_date" class="form-control app-input" required>
+                  </div>
+
+                  <div class="col-md-8">
+                    <label class="form-label-sm d-block">Reminder Title</label>
+                    <input type="text" name="reminder_title" class="form-control app-input"
+                           placeholder="e.g. Rabies vaccination" required>
+                  </div>
+
+                  <div class="col-md-4">
+                    <label class="form-label-sm d-block">Status</label>
+                    <select name="status" class="form-select app-input">
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                  <a href="/reminders" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                  <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                    <i class="bi bi-save me-1"></i> Save Reminder
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="panel">
+            <div class="panel-head">
+              <h6 class="panel-title">Reminder ideas</h6>
+            </div>
+            <div class="panel-body">
+              <div class="d-flex flex-wrap gap-2">
+                <span class="chip chip-green"><i class="bi bi-shield-plus"></i> Annual vaccination</span>
+                <span class="chip chip-violet"><i class="bi bi-capsule"></i> Deworming</span>
+                <span class="chip chip-amber"><i class="bi bi-scissors"></i> Grooming</span>
+                <span class="chip chip-blue"><i class="bi bi-clipboard-pulse"></i> Health check-up</span>
+                <span class="chip"><i class="bi bi-bug"></i> Flea &amp; tick treatment</span>
+              </div>
+              <p class="text-muted small mb-0 mt-3">
+                Reminders show up on your Care Reminders page and turn red once the due date passes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 </div>

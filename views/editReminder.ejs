@@ -1,133 +1,99 @@
 <%- include('partials/header') %>
 
-<div class="staff-shell">
-  <%- include('partials/staff-sidebar', { activePage: 'reminders' }) %>
-  <main class="staff-main">
-    <div class="container-fluid p-4">
-      <main class="container">
-    <div class="row justify-content-center mt-4">
-        <div class="col-md-8">
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'reminders' }) %>
 
-            <div class="card shadow rounded-4 border-0">
-                <div class="card-body p-5">
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
 
-                    <h2 class="text-center fw-bold mb-4" style="color: var(--primary-teal);">
-                        ✏️ Edit Care Reminder
-                    </h2>
+    <div class="app-content">
 
-                    <form action="/reminders/edit/<%= reminder.id %>" method="POST">
-
-                        <!-- Pet -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Select Pet
-                            </label>
-
-                            <select
-                                name="pet_id"
-                                class="form-select"
-                                required>
-
-                                <% pets.forEach(function(pet){ %>
-
-                                    <option
-                                        value="<%= pet.id %>"
-                                        <%= pet.id == reminder.pet_id ? 'selected' : '' %>>
-
-                                        <%= pet.name %>
-
-                                    </option>
-
-                                <% }) %>
-
-                            </select>
-                        </div>
-
-                        <!-- Reminder Title -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Reminder Title
-                            </label>
-
-                            <input
-                                type="text"
-                                name="reminder_title"
-                                class="form-control"
-                                value="<%= reminder.reminder_title %>"
-                                required>
-                        </div>
-
-                        <!-- Due Date -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                Due Date
-                            </label>
-
-                            <input
-                                type="date"
-                                name="due_date"
-                                class="form-control"
-                                value="<%= reminder.due_date.toISOString().split('T')[0] %>"
-                                required>
-                        </div>
-
-                        <!-- Status -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">
-                                Status
-                            </label>
-
-                            <select
-                                name="status"
-                                class="form-select">
-
-                                <option
-                                    value="Pending"
-                                    <%= reminder.status === "Pending" ? "selected" : "" %>>
-
-                                    Pending
-
-                                </option>
-
-                                <option
-                                    value="Completed"
-                                    <%= reminder.status === "Completed" ? "selected" : "" %>>
-
-                                    Completed
-
-                                </option>
-
-                            </select>
-                        </div>
-
-                        <div class="d-flex justify-content-center gap-3">
-
-                            <button
-                                type="submit"
-                                class="btn btn-warning rounded-pill px-4 fw-bold">
-
-                                💾 Update Reminder
-
-                            </button>
-
-                            <a
-                                href="/reminders"
-                                class="btn btn-secondary rounded-pill px-4 fw-bold">
-
-                                Cancel
-
-                            </a>
-
-                        </div>
-
-                    </form>
-
-                </div>
-            </div>
-
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Edit <span class="accent">Care Reminder</span></h1>
+          <p class="page-sub">Update the pet, date, or mark this reminder as completed.</p>
         </div>
-    </div>
-</main>
+        <a href="/reminders" class="btn btn-outline-secondary rounded-pill px-4">
+          <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="panel">
+            <div class="panel-body">
+              <form action="/reminders/edit/<%= reminder.id %>" method="POST">
+                <div class="form-section-title">Reminder details</div>
+
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Pet</label>
+                    <select name="pet_id" class="form-select app-input" required>
+                      <% pets.forEach(function(pet){ %>
+                        <option value="<%= pet.id %>" <%= pet.id == reminder.pet_id ? 'selected' : '' %>>
+                          <%= pet.name %>
+                        </option>
+                      <% }) %>
+                    </select>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Due Date</label>
+                    <input type="date" name="due_date" class="form-control app-input"
+                           value="<%= reminder.due_date.toISOString().split('T')[0] %>" required>
+                  </div>
+
+                  <div class="col-md-8">
+                    <label class="form-label-sm d-block">Reminder Title</label>
+                    <input type="text" name="reminder_title" class="form-control app-input"
+                           value="<%= reminder.reminder_title %>" required>
+                  </div>
+
+                  <div class="col-md-4">
+                    <label class="form-label-sm d-block">Status</label>
+                    <select name="status" class="form-select app-input">
+                      <option value="Pending" <%= reminder.status === "Pending" ? "selected" : "" %>>Pending</option>
+                      <option value="Completed" <%= reminder.status === "Completed" ? "selected" : "" %>>Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                  <a href="/reminders" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                  <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                    <i class="bi bi-save me-1"></i> Update Reminder
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="panel">
+            <div class="panel-head">
+              <h6 class="panel-title">Current status</h6>
+            </div>
+            <div class="panel-body">
+              <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon <%= reminder.status === 'Completed' ? 'teal' : 'amber' %>">
+                  <i class="bi <%= reminder.status === 'Completed' ? 'bi-check2-circle' : 'bi-clock-fill' %>"></i>
+                </div>
+                <div>
+                  <div class="fw-bold text-dark"><%= reminder.reminder_title %></div>
+                  <div class="text-muted small">
+                    Due <%= new Date(reminder.due_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                  </div>
+                </div>
+              </div>
+              <p class="text-muted small mb-0 mt-3">
+                Marking a reminder as completed removes it from your pending count on the dashboard.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 </div>

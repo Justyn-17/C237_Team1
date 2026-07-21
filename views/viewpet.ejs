@@ -1,90 +1,169 @@
 <%- include('partials/header') %>
-    <%- include('partials/navbar') %>
 
-        <main class="container">
-            <div class="row mt-4 justify-content-center">
-                <div class="col-md-8 col-lg-6">
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'dashboard' }) %>
 
-                    <div class="card rounded-4 border-0 shadow-sm mb-4">
-                        <div class="card-body p-4 text-center">
-                            <img src="<%= photoPath(pet.photo) || 'https://placehold.co/120x120?text=No+Photo' %>"
-                                alt="<%= pet.name %>" class="rounded-4 shadow-sm mb-3"
-                                style="width: 120px; height: 120px; object-fit: cover;">
-                            <h2 class="fw-bold" style="color: var(--primary-teal);">🐾 <%= pet.name %></h2>
-                            <p class="text-muted mb-0"><%= pet.species %> &middot; <%= pet.breed || 'Unknown breed' %> &middot; <%= pet.gender %></p>
-                            <a href="/customer-dashboard" class="btn btn-light btn-sm mt-3">← Back to Dashboard</a>
-                        </div>
-                    </div>
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
 
-                    <div class="card rounded-4 border-0 shadow-sm">
-                        <div class="card-body p-4">
-                            <h4 class="fw-bold mb-3 text-dark">Care Records</h4>
+    <div class="app-content">
 
-                            <!-- Filter by record type -->
-                            <div class="btn-group mb-3">
-                                <a href="/pets/view/<%= pet.id %>"
-                                    class="btn btn-sm <%= !typeFilter ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
-                                <a href="/pets/view/<%= pet.id %>?type=Feeding"
-                                    class="btn btn-sm <%= typeFilter === 'Feeding' ? 'btn-primary' : 'btn-outline-primary' %>">Feeding</a>
-                                <a href="/pets/view/<%= pet.id %>?type=Vaccination"
-                                    class="btn btn-sm <%= typeFilter === 'Vaccination' ? 'btn-primary' : 'btn-outline-primary' %>">Vaccination</a>
-                                <a href="/pets/view/<%= pet.id %>?type=Medication"
-                                    class="btn btn-sm <%= typeFilter === 'Medication' ? 'btn-primary' : 'btn-outline-primary' %>">Medication</a>
-                            </div>
+      <%
+        const recordChip = t =>
+          t === 'Vaccination' ? 'chip-green' :
+          t === 'Medication'  ? 'chip-violet' :
+          t === 'Feeding'     ? 'chip-amber'  : 'chip-blue';
 
-                            <% if (records.length > 0) { %>
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Type</th>
-                                            <th>Description</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <% records.forEach(function(record) { %>
-                                            <tr>
-                                                <td><%= new Date(record.record_date).toLocaleDateString() %></td>
-                                                <td><span class="badge bg-secondary"><%= record.record_type %></span></td>
-                                                <td><%= record.description || '-' %></td>
-                                            </tr>
-                                        <% }); %>
-                                    </tbody>
-                                </table>
-                            <% } else { %>
-                                <p class="text-muted"><%= typeFilter ? `No ${typeFilter} records yet.` : 'No care records yet.' %></p>
-                            <% } %>
+        const countOf = t => records.filter(r => r.record_type === t).length;
+      %>
 
-                            <hr>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">🐾 <span class="accent"><%= pet.name %></span></h1>
+          <p class="page-sub">Care history and health records.</p>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="/pets/edit/<%= pet.id %>" class="btn btn-outline-secondary rounded-pill px-4">
+            <i class="bi bi-pencil me-1"></i> Edit
+          </a>
+          <a href="/customer-dashboard" class="btn btn-primary rounded-pill px-4">
+            <i class="bi bi-arrow-left me-1"></i> Dashboard
+          </a>
+        </div>
+      </div>
 
-                            <h5 class="fw-bold mb-3 text-dark">Add Care Record</h5>
-                            <form action="/pets/<%= pet.id %>/care-records" method="POST" class="row g-2">
-                                <div class="col-md-4">
-                                    <select name="record_type" class="form-select bg-light border-0" required>
-                                        <option value="" disabled selected>Type</option>
-                                        <option value="Feeding">Feeding</option>
-                                        <option value="Vaccination">Vaccination</option>
-                                        <option value="Medication">Medication</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="text" name="description" maxlength="255"
-                                        class="form-control bg-light border-0" placeholder="Description">
-                                </div>
-                                <div class="col-md-3">
-                                    <input type="date" name="record_date" class="form-control bg-light border-0" required>
-                                </div>
-                                <div class="col-md-1">
-                                    <button type="submit" class="btn btn-primary w-100">➕</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+      <div class="row g-3">
 
-                </div>
+        <!-- Pet profile -->
+        <div class="col-lg-4">
+          <div class="panel mb-3">
+            <div class="panel-body text-center">
+              <img src="<%= photoPath(pet.photo) || petPlaceholder %>"
+                   alt="<%= pet.name %>" class="rounded-4 shadow-sm mb-3"
+                   style="width: 150px; height: 150px; object-fit: cover;">
+              <h5 class="fw-bold mb-1 text-dark"><%= pet.name %></h5>
+              <div class="text-muted small mb-3"><%= pet.breed || 'Unknown breed' %></div>
+
+              <div class="d-flex flex-wrap justify-content-center gap-2">
+                <span class="chip chip-teal"><%= pet.species %></span>
+                <span class="chip"><%= pet.gender %></span>
+                <span class="chip chip-violet"><%= pet.age %> yr</span>
+              </div>
             </div>
-        </main>
+          </div>
 
-        </body>
+          <div class="panel">
+            <div class="panel-head">
+              <h6 class="panel-title">Record Summary</h6>
+            </div>
+            <div class="panel-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">Feeding</span>
+                <span class="chip chip-amber"><%= countOf('Feeding') %></span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">Vaccination</span>
+                <span class="chip chip-green"><%= countOf('Vaccination') %></span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Medication</span>
+                <span class="chip chip-violet"><%= countOf('Medication') %></span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        </html>
+        <!-- Care records -->
+        <div class="col-lg-8">
+          <div class="panel mb-3">
+            <div class="panel-head flex-wrap">
+              <h6 class="panel-title">Care Records</h6>
+              <!-- Filter by record type -->
+              <div class="filter-pills">
+                <a href="/pets/view/<%= pet.id %>"
+                   class="filter-pill <%= !typeFilter ? 'active' : '' %>">All</a>
+                <a href="/pets/view/<%= pet.id %>?type=Feeding"
+                   class="filter-pill <%= typeFilter === 'Feeding' ? 'active' : '' %>">Feeding</a>
+                <a href="/pets/view/<%= pet.id %>?type=Vaccination"
+                   class="filter-pill <%= typeFilter === 'Vaccination' ? 'active' : '' %>">Vaccination</a>
+                <a href="/pets/view/<%= pet.id %>?type=Medication"
+                   class="filter-pill <%= typeFilter === 'Medication' ? 'active' : '' %>">Medication</a>
+              </div>
+            </div>
+
+            <% if (records.length > 0) { %>
+              <div class="table-responsive">
+                <table class="app-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% records.forEach(function(record) { %>
+                      <tr>
+                        <td class="text-nowrap">
+                          <%= new Date(record.record_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                        </td>
+                        <td>
+                          <span class="chip <%= recordChip(record.record_type) %>"><%= record.record_type %></span>
+                        </td>
+                        <td><%= record.description || '—' %></td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            <% } else { %>
+              <div class="empty-state">
+                <span class="empty-emoji">📋</span>
+                <h6><%= typeFilter ? `No ${typeFilter} records yet` : 'No care records yet' %></h6>
+                <p>Add your first record below to start building <%= pet.name %>'s history.</p>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h6 class="panel-title">Add Care Record</h6>
+            </div>
+            <div class="panel-body">
+              <form action="/pets/<%= pet.id %>/care-records" method="POST" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                  <label class="form-label-sm d-block">Type</label>
+                  <select name="record_type" class="form-select app-input" required>
+                    <option value="" disabled selected>Select</option>
+                    <option value="Feeding">Feeding</option>
+                    <option value="Vaccination">Vaccination</option>
+                    <option value="Medication">Medication</option>
+                  </select>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label-sm d-block">Description</label>
+                  <input type="text" name="description" maxlength="255"
+                         class="form-control app-input" placeholder="e.g. Rabies booster">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label-sm d-block">Date</label>
+                  <input type="date" name="record_date" class="form-control app-input" required>
+                </div>
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-primary w-100 rounded-pill fw-semibold">
+                    <i class="bi bi-plus-lg"></i> Add
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
