@@ -155,6 +155,13 @@ app.post('/register', async (req, res) => {
 
         db.query(sql, [name, phone, username, password_hash, securityQuestion, security_answer_hash], (err, result) => {
             if (err) {
+                if (err.code === 'ER_DUP_ENTRY') {
+                    if (err.sqlMessage && err.sqlMessage.includes('username')) {
+                        return res.render('register', { errorMessage: "This username is already taken. Please choose another." });
+                    } else if (err.sqlMessage && err.sqlMessage.includes('phone')) {
+                        return res.render('register', { errorMessage: "This phone number is already registered." });
+                    }
+                }
                 console.error("Database error during registration:", err);
                 return res.status(500).send("An internal server error occurred during registration. Please try again later.");
             }
@@ -262,6 +269,36 @@ app.get('/customer-dashboard', requireRole('customer'), (req, res) => {
         });
 
         res.render('customer', { pets: results });
+    });
+});
+
+// Customer Profile
+app.get('/profile', requireRole('customer'), (req, res) => {
+    db.query("SELECT * FROM users WHERE id = ?", [req.session.userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching user profile:", err);
+            return res.status(500).send("Database error");
+        }
+        if (results.length === 0) {
+            return res.status(404).send("User not found");
+        }
+        res.render('profile', { user: results[0] });
+    });
+});
+
+app.post('/profile/update', requireRole('customer'), (req, res) => {
+    const { name, phone } = req.body;
+    if (!name || !phone) {
+        return res.status(400).send("Name and phone are required");
+    }
+    db.query("UPDATE users SET name = ?, phone = ? WHERE id = ?", [name, phone, req.session.userId], (err) => {
+        if (err) {
+            console.error("Error updating profile:", err);
+            return res.status(500).send("Database error");
+        }
+        req.session.name = name;
+        req.session.phone = phone;
+        res.redirect('/profile');
     });
 });
 
