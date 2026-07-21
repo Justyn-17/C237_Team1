@@ -1,5 +1,144 @@
 <%- include('partials/header') %>
 
+<% if (role === 'customer') { %>
+<%
+  // ---- Customer view -------------------------------------------------------
+  const countStatus = s => reminders.filter(r => r.displayStatus === s).length;
+
+  const statusChip = s =>
+    s === 'Completed' ? 'chip-green' :
+    s === 'Overdue'   ? 'chip-red'   :
+    s === 'Due Today' ? 'chip-amber' : 'chip-blue';
+
+  const statusIcon = s =>
+    s === 'Completed' ? 'bi-check-circle-fill' :
+    s === 'Overdue'   ? 'bi-exclamation-circle-fill' :
+    s === 'Due Today' ? 'bi-clock-fill' : 'bi-calendar-event-fill';
+%>
+
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'reminders' }) %>
+
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
+
+    <div class="app-content">
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Care <span class="accent">Reminders</span></h1>
+          <p class="page-sub">Vaccinations, medication, grooming — never miss what your pets need.</p>
+        </div>
+        <a href="/reminders/add" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <i class="bi bi-plus-lg me-1"></i> Add Reminder
+        </a>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+          <div class="stat-card">
+            <div class="stat-icon amber"><i class="bi bi-clock-fill"></i></div>
+            <div>
+              <div class="stat-label">Due Today</div>
+              <div class="stat-value"><%= countStatus('Due Today') %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:#fef2f2; color:#dc2626;"><i class="bi bi-exclamation-circle-fill"></i></div>
+            <div>
+              <div class="stat-label">Overdue</div>
+              <div class="stat-value"><%= countStatus('Overdue') %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-calendar-event-fill"></i></div>
+            <div>
+              <div class="stat-label">Upcoming</div>
+              <div class="stat-value"><%= countStatus('Upcoming') %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="stat-card">
+            <div class="stat-icon teal"><i class="bi bi-check2-circle"></i></div>
+            <div>
+              <div class="stat-label">Completed</div>
+              <div class="stat-value"><%= countStatus('Completed') %></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h6 class="panel-title">All Reminders</h6>
+          <span class="chip"><%= reminders.length %> total</span>
+        </div>
+
+        <% if (reminders.length === 0) { %>
+          <div class="empty-state">
+            <span class="empty-emoji">🔔</span>
+            <h6>No reminders yet</h6>
+            <p>Set a reminder for vaccinations, medication or check-ups.</p>
+            <a href="/reminders/add" class="btn btn-primary rounded-pill px-4 fw-semibold">Add your first reminder</a>
+          </div>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="app-table">
+              <thead>
+                <tr>
+                  <th>Pet</th>
+                  <th>Reminder</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% reminders.forEach(function(reminder){ %>
+                  <tr>
+                    <td class="fw-semibold text-dark"><%= reminder.pet_name %></td>
+                    <td><%= reminder.reminder_title %></td>
+                    <td class="text-nowrap">
+                      <%= new Date(reminder.due_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                    </td>
+                    <td>
+                      <span class="chip <%= statusChip(reminder.displayStatus) %>">
+                        <i class="bi <%= statusIcon(reminder.displayStatus) %>"></i> <%= reminder.displayStatus %>
+                      </span>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-flex gap-2 justify-content-end">
+                        <a href="/reminders/edit/<%= reminder.id %>"
+                           class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Edit reminder">
+                          <i class="bi bi-pencil"></i>
+                        </a>
+                        <form action="/reminders/delete/<%= reminder.id %>" method="POST" class="d-inline"
+                              onsubmit="return confirm('Delete this reminder?');">
+                          <button class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete reminder">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<% } else { %>
+<!-- ---- Staff view (unchanged) ---- -->
 <div class="staff-shell">
   <%- include('partials/staff-sidebar', { activePage: 'reminders' }) %>
   <main class="staff-main">
@@ -15,15 +154,6 @@
                     <h2 class="text-center fw-bold mb-4" style="color: var(--primary-teal);">
                         🔔 Care Reminders
                     </h2>
-
-                    <% if (role === 'customer') { %>
-                    <div class="d-flex justify-content-end mb-4">
-                        <a href="/reminders/add"
-                           class="btn btn-success rounded-pill fw-bold px-4">
-                            ➕ Add Reminder
-                        </a>
-                    </div>
-                    <% } %>
 
                     <% if (reminders.length === 0) { %>
 
@@ -45,10 +175,6 @@
                                     <th>Reminder</th>
                                     <th>Due Date</th>
                                     <th>Status</th>
-
-                                    <% if (role === 'customer') { %>
-                                        <th class="text-end">Actions</th>
-                                    <% } %>
 
                                 </tr>
 
@@ -98,31 +224,6 @@
 
                                     </td>
 
-                                    <% if (role === 'customer') { %>
-
-                                    <td class="text-end">
-
-                                        <a href="/reminders/edit/<%= reminder.id %>"
-                                           class="btn btn-warning btn-sm">
-                                            ✏️ Edit
-                                        </a>
-
-                                        <form
-                                            action="/reminders/delete/<%= reminder.id %>"
-                                            method="POST"
-                                            class="d-inline"
-                                            onsubmit="return confirm('Delete this reminder?');">
-
-                                            <button class="btn btn-danger btn-sm">
-                                                🗑 Delete
-                                            </button>
-
-                                        </form>
-
-                                    </td>
-
-                                    <% } %>
-
                                 </tr>
 
                                 <% }) %>
@@ -137,21 +238,10 @@
 
                     <div class="text-center mt-4">
 
-                        <% if (role === 'customer') { %>
-
-                            <a href="/customer-dashboard"
-                               class="btn btn-secondary rounded-pill px-4">
-                                ← Back to Dashboard
-                            </a>
-
-                        <% } else { %>
-
-                            <a href="/staff-dashboard"
-                               class="btn btn-secondary rounded-pill px-4">
-                                ← Back to Dashboard
-                            </a>
-
-                        <% } %>
+                        <a href="/staff-dashboard"
+                           class="btn btn-secondary rounded-pill px-4">
+                            ← Back to Dashboard
+                        </a>
 
                     </div>
 
@@ -165,6 +255,7 @@
     </div>
   </main>
 </div>
+<% } %>
 
 </body>
 </html>

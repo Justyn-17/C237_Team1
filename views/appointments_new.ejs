@@ -1,131 +1,146 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
 
-<main class="container">
-  <div class="row mt-4 justify-content-center">
-    <div class="col-md-8 col-lg-7">
-      <div class="card rounded-4 border-0 shadow-sm">
-        <div class="card-body p-4 p-md-5">
-          <h2 class="mb-3 fw-bold" style="color: var(--primary-teal);">Book a New Appointment</h2>
-          <p class="text-muted mb-4">
-            Choose a pet, date, and a time slot. The system will prevent overlapping bookings for the same vet.
-          </p>
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'book' }) %>
 
-          <form action="/appointments" method="POST">
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
 
-            <!-- Pet dropdown -->
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label text-secondary fw-semibold">Pet</label>
-                <select name="pet_id" class="form-select bg-light border-0" required>
-                  <option value="" disabled selected>Select a pet</option>
-                  <% pets.forEach(function(pet) { %>
-                    <option value="<%= pet.id %>">
-                      <%= pet.name %> (<%= pet.species %> <%= pet.breed ? '– ' + pet.breed : '' %>)
-                    </option>
+    <div class="app-content">
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Book an <span class="accent">Appointment</span></h1>
+          <p class="page-sub">Pick a pet, a vet, and a time slot — we'll block out double bookings automatically.</p>
+        </div>
+        <a href="/customer-dashboard" class="btn btn-outline-secondary rounded-pill px-4">
+          <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+      </div>
+
+      <form action="/appointments" method="POST">
+        <div class="row g-3">
+
+          <!-- Main form -->
+          <div class="col-lg-8">
+            <div class="panel mb-3">
+              <div class="panel-body">
+                <div class="form-section-title">Visit details</div>
+
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Pet</label>
+                    <select name="pet_id" class="form-select app-input" required>
+                      <option value="" disabled selected>Select a pet</option>
+                      <% pets.forEach(function(pet) { %>
+                        <option value="<%= pet.id %>">
+                          <%= pet.name %> (<%= pet.species %><%= pet.breed ? ' – ' + pet.breed : '' %>)
+                        </option>
+                      <% }); %>
+                    </select>
+                    <% if (pets.length === 0) { %>
+                      <div class="form-text text-danger">
+                        You need a registered pet first — <a href="/addpet">add one here</a>.
+                      </div>
+                    <% } %>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Appointment Date</label>
+                    <input type="date" name="date" class="form-control app-input" required>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label-sm d-block">Vet</label>
+                    <select name="vet_id" class="form-select app-input" required>
+                      <option value="" disabled selected>Select a vet</option>
+                      <% vets.forEach(function(vet) { %>
+                        <option value="<%= vet.id %>"><%= vet.name %></option>
+                      <% }); %>
+                    </select>
+                    <% if (vets.length === 0) { %>
+                      <div class="form-text text-danger">No vets are available right now. Please try again later.</div>
+                    <% } %>
+                  </div>
+                </div>
+
+                <hr class="my-4" style="opacity:.08">
+
+                <div class="form-section-title">Pick a time slot</div>
+                <div class="d-flex flex-wrap gap-2">
+                  <% const slots = [
+                       ['10:00:00', '10:00 AM'], ['11:00:00', '11:00 AM'], ['12:00:00', '12:00 PM'],
+                       ['13:00:00', '1:00 PM'],  ['14:00:00', '2:00 PM'],  ['15:00:00', '3:00 PM'],
+                       ['16:00:00', '4:00 PM'],  ['17:00:00', '5:00 PM'],  ['18:00:00', '6:00 PM']
+                     ]; %>
+                  <% slots.forEach(function(slot, i) { %>
+                    <div>
+                      <input class="btn-check" type="radio" name="slot_time"
+                             id="slot-<%= i %>" value="<%= slot[0] %>" <%= i === 0 ? 'required' : '' %>>
+                      <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-<%= i %>">
+                        <%= slot[1] %>
+                      </label>
+                    </div>
                   <% }); %>
-                </select>
-              </div>
+                </div>
+                <div class="form-text text-muted mt-2">
+                  If a slot is already taken for that vet on that date, the booking will be rejected.
+                </div>
 
-              <div class="col-md-6 mb-3">
-                <label class="form-label text-secondary fw-semibold">Appointment Date</label>
-                <input type="date" name="date" class="form-control bg-light border-0" required>
-              </div>
-            </div>
+                <hr class="my-4" style="opacity:.08">
 
-            <!-- Vet dropdown -->
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label text-secondary fw-semibold">Vet</label>
-                <select name="vet_id" class="form-select bg-light border-0" required>
-                  <option value="" disabled selected>Select a vet</option>
-                  <% vets.forEach(function(vet) { %>
-                    <option value="<%= vet.id %>"><%= vet.name %></option>
-                  <% }); %>
-                </select>
-                <% if (vets.length === 0) { %>
-                  <div class="form-text text-danger">No vets are available right now. Please try again later.</div>
-                <% } %>
+                <div class="form-section-title">Reason for visit</div>
+                <textarea name="reason" class="form-control app-input" rows="3"
+                          placeholder="Routine checkup, vaccination, grooming, etc."></textarea>
               </div>
             </div>
 
-            <!-- Time slots: single specific time -->
-            <div class="mb-3">
-              <label class="form-label text-secondary fw-semibold">Time Slot</label>
-              <div class="d-flex flex-wrap gap-2">
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-10" value="10:00:00" required>
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-10">10:00 AM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-11" value="11:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-11">11:00 AM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-12" value="12:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-12">12:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-13" value="13:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-13">1:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-14" value="14:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-14">2:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-15" value="15:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-15">3:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-16" value="16:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-16">4:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-17" value="17:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-17">5:00 PM</label>
-                </div>
-
-                <div class="form-check">
-                  <input class="btn-check" type="radio" name="slot_time" id="slot-18" value="18:00:00">
-                  <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-18">6:00 PM</label>
-                </div>
-
-              </div>
-              <div class="form-text text-muted">
-                If a slot is already booked for this vet on that date, the system will reject it.
-              </div>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label text-secondary fw-semibold">Reason / Notes</label>
-              <textarea name="reason" class="form-control bg-light border-0" rows="3"
-                        placeholder="Routine checkup, vaccination, grooming, etc."></textarea>
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center mt-4">
-              <a href="/customer-dashboard" class="btn btn-outline-secondary rounded-pill px-4">
-                &larr; Back to Dashboard
-              </a>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <a href="/customer-dashboard" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
               <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4 fw-bold shadow-sm">
-                📅 Confirm Appointment
+                <i class="bi bi-calendar-check me-1"></i> Confirm Appointment
               </button>
             </div>
+          </div>
 
-          </form>
+          <!-- Helper column -->
+          <div class="col-lg-4">
+            <div class="panel">
+              <div class="panel-head">
+                <h6 class="panel-title">Good to know</h6>
+              </div>
+              <div class="panel-body">
+                <div class="d-flex gap-3 mb-3">
+                  <i class="bi bi-clock-history fs-5" style="color: var(--primary-teal);"></i>
+                  <div>
+                    <div class="fw-semibold text-dark small">One hour per slot</div>
+                    <div class="text-muted small">Each booking reserves a full hour with your vet.</div>
+                  </div>
+                </div>
+                <div class="d-flex gap-3 mb-3">
+                  <i class="bi bi-shield-check fs-5" style="color: var(--primary-teal);"></i>
+                  <div>
+                    <div class="fw-semibold text-dark small">No double bookings</div>
+                    <div class="text-muted small">Taken slots are rejected before they're saved.</div>
+                  </div>
+                </div>
+                <div class="d-flex gap-3">
+                  <i class="bi bi-x-circle fs-5" style="color: var(--primary-teal);"></i>
+                  <div>
+                    <div class="fw-semibold text-dark small">Free to cancel</div>
+                    <div class="text-muted small">Cancel anytime from My Appointments.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
-      </div>
+      </form>
+
     </div>
-  </div>
-</main>
+  </main>
+</div>
 
 </body>
 </html>

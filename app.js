@@ -36,6 +36,15 @@ app.locals.photoPath = function (photo) {
     return photo;
 };
 
+// Inline paw placeholder shown when a pet has no photo. Kept as a data URI so the
+// customer pages don't depend on an external image host.
+app.locals.petPlaceholder =
+    "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E" +
+    "%3Crect%20width='100'%20height='100'%20fill='%23f1f5f9'/%3E%3Cg%20fill='%2394a3b8'%3E" +
+    "%3Cellipse%20cx='50'%20cy='67'%20rx='20'%20ry='15'/%3E%3Ccircle%20cx='29'%20cy='45'%20r='8'/%3E" +
+    "%3Ccircle%20cx='43'%20cy='34'%20r='8'/%3E%3Ccircle%20cx='58'%20cy='34'%20r='8'/%3E" +
+    "%3Ccircle%20cx='72'%20cy='45'%20r='8'/%3E%3C/g%3E%3C/svg%3E";
+
 // Multer config for pet photo uploads (used by /addpet)
 const upload = multer({
     storage: multer.diskStorage({
@@ -71,6 +80,8 @@ app.use(session({
 // Provide session state to all views so navbar logic works
 app.use((req, res, next) => {
     res.locals.role = req.session.role || null;
+    // Used by the customer sidebar to greet the signed-in owner
+    res.locals.username = req.session.username || null;
     next();
 });
 
@@ -268,7 +279,45 @@ app.get('/customer-dashboard', requireRole('customer'), (req, res) => {
             }
         });
 
-        res.render('customer', { pets: results });
+        // Dashboard summary numbers. If either of these extra queries fails we still
+        // render the page — the view falls back to "—" for any missing stat.
+        const statsSql = `
+            SELECT
+                (SELECT COUNT(*) FROM pets WHERE owner_id = ?) AS petCount,
+                (SELECT COUNT(*) FROM appointments
+                    WHERE owner_id = ? AND status = 'booked' AND date >= CURDATE()) AS upcomingAppts,
+                (SELECT COUNT(*) FROM reminders r
+                    JOIN pets p ON r.pet_id = p.id
+                    WHERE p.owner_id = ? AND r.status = 'Pending') AS pendingReminders
+        `;
+
+        const nextApptSql = `
+            SELECT a.date, a.start_time, a.reason,
+                   p.name AS pet_name, v.name AS vet_name
+            FROM appointments a
+            JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users v ON a.vet_id = v.id
+            WHERE a.owner_id = ? AND a.status = 'booked' AND a.date >= CURDATE()
+            ORDER BY a.date, a.start_time
+            LIMIT 1
+        `;
+
+        const userId = req.session.userId;
+
+        db.query(statsSql, [userId, userId, userId], (statsErr, statsRows) => {
+            if (statsErr) console.error("Error fetching dashboard stats:", statsErr);
+            const stats = statsErr ? null : statsRows[0];
+
+            db.query(nextApptSql, [userId], (apptErr, apptRows) => {
+                if (apptErr) console.error("Error fetching next appointment:", apptErr);
+
+                res.render('customer', {
+                    pets: results,
+                    stats,
+                    nextAppointment: (!apptErr && apptRows.length) ? apptRows[0] : null
+                });
+            });
+        });
     });
 });
 
