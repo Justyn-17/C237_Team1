@@ -1,7 +1,10 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
 
-<main class="container py-5">
+<div class="staff-shell">
+  <%- include('partials/staff-sidebar', { activePage: 'settings' }) %>
+  <main class="staff-main">
+    <div class="container-fluid p-4">
+      <main class="container py-5">
   <div class="row justify-content-center mt-5">
     <div class="col-md-8 col-lg-6 text-center">
       <div class="card border-0 rounded-4 shadow-sm p-5" style="background-color: #f8fafc;">
@@ -28,6 +31,9 @@
     </div>
   </div>
 </main>
+    </div>
+  </main>
+</div>
 
 <style>
   .btn-hover-effect:hover {

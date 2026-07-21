@@ -1,7 +1,10 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
 
-<main class="container">
+<div class="staff-shell">
+  <%- include('partials/staff-sidebar', { activePage: 'reminders' }) %>
+  <main class="staff-main">
+    <div class="container-fluid p-4">
+      <main class="container">
     <div class="row justify-content-center mt-4">
         <div class="col-md-8">
 
@@ -114,6 +117,9 @@
         </div>
     </div>
 </main>
+    </div>
+  </main>
+</div>
 
 </body>
 </html>
