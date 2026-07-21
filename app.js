@@ -853,7 +853,7 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
 // ==========================================
 // VET DASHBOARD & REPORTING
 // ==========================================
-app.get('/vet-dashboard', requireStaff, (req, res) => {
+app.get('/vet-dashboard', requireRole('staff'), (req, res) => {
     // 1. Grab the filter from the URL if the user selected one (e.g., ?status=completed)
     const statusFilter = req.query.status;
 
