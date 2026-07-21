@@ -1,9 +1,16 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
-
 <% var admin = (typeof isAdmin !== 'undefined') && isAdmin; %>
 
-<main class="container mt-4">
+<% if (admin || role === 'staff') { %>
+  <div class="staff-shell">
+    <%- include('partials/staff-sidebar', { activePage: 'appointments' }) %>
+    <main class="staff-main">
+      <div class="container-fluid p-4">
+        <main class="container mt-4">
+<% } else { %>
+  <%- include('partials/navbar') %>
+  <main class="container mt-4">
+<% } %>
 
   <div class="card rounded-4 border-0 shadow-sm">
     <div class="card-body p-4 p-md-5">
@@ -135,6 +142,12 @@
     </div>
   </div>
 </main>
+
+<% if (admin || role === 'staff') { %>
+      </div>
+    </main>
+  </div>
+<% } %>
 
 </body>
 </html>
