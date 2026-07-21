@@ -197,7 +197,6 @@
 
         .app-content {
             padding: 1.75rem;
-            max-width: 1240px;
         }
 
         /* ---------- Page header ---------- */
@@ -535,80 +534,7 @@
             color: #fff;
         }
 
-        /* ---------- Mobile ---------- */
-        .sidebar-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, .5);
-            z-index: 1035;
-            display: none;
-        }
-
-        .mobile-topbar {
-            display: none;
-            align-items: center;
-            gap: .75rem;
-            padding: .75rem 1rem;
-            background: #1e293b;
-            color: #fff;
-            position: sticky;
-            top: 0;
-            z-index: 1030;
-        }
-
-        .mobile-topbar button {
-            background: transparent;
-            border: none;
-            color: #fff;
-            font-size: 1.4rem;
-            line-height: 1;
-        }
-
-        @media (max-width: 991.98px) {
-            .app-sidebar {
-                position: fixed;
-                top: 0;
-                left: 0;
-                transform: translateX(-100%);
-                width: 260px !important;
-            }
-
-            .app-sidebar.open {
-                transform: translateX(0);
-            }
-
-            .app-sidebar.collapsed .sidebar-brand,
-            .app-sidebar.collapsed .sidebar-subtitle,
-            .app-sidebar.collapsed .nav-link-label,
-            .app-sidebar.collapsed .sidebar-user-meta {
-                display: block;
-            }
-
-            .app-sidebar .sidebar-toggle {
-                display: none;
-            }
-
-            .sidebar-backdrop.show {
-                display: block;
-            }
-
-            .mobile-topbar {
-                display: flex;
-            }
-
-            .app-content {
-                padding: 1.1rem;
-            }
-
-            .app-table thead th,
-            .app-table tbody td {
-                padding-left: 1rem;
-                padding-right: 1rem;
-            }
-        }
     </style>
-
-    <div class="sidebar-backdrop" id="appSidebarBackdrop"></div>
 
     <nav class="app-sidebar" id="appSidebar">
         <script>
@@ -673,28 +599,12 @@
         document.addEventListener('DOMContentLoaded', function () {
             const sidebar = document.getElementById('appSidebar');
             const toggleBtn = document.getElementById('appSidebarToggle');
-            const backdrop = document.getElementById('appSidebarBackdrop');
-            const mobileBtn = document.getElementById('appSidebarMobileToggle');
-
             if (toggleBtn && sidebar) {
                 toggleBtn.addEventListener('click', function () {
                     sidebar.classList.toggle('collapsed');
                     localStorage.setItem('customerSidebarCollapsed',
                         sidebar.classList.contains('collapsed') ? 'true' : 'false');
                 });
-            }
-
-            function closeMobile() {
-                sidebar.classList.remove('open');
-                backdrop.classList.remove('show');
-            }
-
-            if (mobileBtn && sidebar && backdrop) {
-                mobileBtn.addEventListener('click', function () {
-                    sidebar.classList.add('open');
-                    backdrop.classList.add('show');
-                });
-                backdrop.addEventListener('click', closeMobile);
             }
         });
     </script>

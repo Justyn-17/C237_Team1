@@ -1,0 +1,88 @@
+<%- include('partials/header') %>
+
+<div class="staff-shell">
+  <%- include('partials/staff-sidebar', { activePage: 'profile' }) %>
+
+  <main class="staff-main" style="flex: 1; min-width: 0; background-color: #f8fafc;">
+    <div class="container-fluid p-4">
+
+      <div class="mb-4">
+        <h1 class="h3 fw-bold mb-1" style="color: #0d9488;">My Profile</h1>
+        <p class="text-muted mb-0">Keep your contact details up to date so the clinic can reach you.</p>
+      </div>
+
+      <div class="row g-4">
+        <!-- Identity card -->
+        <div class="col-lg-4">
+          <div class="card h-100 border-0 shadow-sm rounded-4">
+            <div class="card-body text-center p-4">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                   style="width: 96px; height: 96px; background: #f0fdfa; color: #0d9488; font-size: 2.5rem;">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <h5 class="fw-bold mb-1 text-dark"><%= user.name %></h5>
+              <div class="text-muted small mb-3">@<%= user.username %></div>
+              
+              <span class="badge rounded-pill" style="background: #f0fdfa; color: #0f766e; padding: 0.5rem 1rem; font-weight: 600;">
+                <i class="bi bi-patch-check-fill me-1"></i> <%= user.role.charAt(0).toUpperCase() + user.role.slice(1) %>
+              </span>
+
+              <hr class="my-4" style="opacity: 0.1">
+
+              <div class="text-start">
+                <div class="d-flex align-items-center gap-2 mb-2 text-muted small">
+                  <i class="bi bi-telephone text-secondary"></i> <%= user.phone %>
+                </div>
+                <div class="d-flex align-items-center gap-2 text-muted small">
+                  <i class="bi bi-shield-lock text-secondary"></i> Account active
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit form -->
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+            <div class="card-header bg-white border-bottom py-3 px-4">
+              <h6 class="mb-0 fw-bold text-dark">Account Details</h6>
+            </div>
+            <div class="card-body p-4">
+              <form action="/staff/profile/update" method="POST">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="name" class="form-label text-muted small fw-bold text-uppercase" style="letter-spacing: 0.03em;">Full Name</label>
+                    <div class="input-group">
+                      <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                      <input type="text" class="form-control bg-light border-start-0 ps-0" id="name" name="name"
+                             value="<%= user.name %>" required>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label for="phone" class="form-label text-muted small fw-bold text-uppercase" style="letter-spacing: 0.03em;">Phone Number</label>
+                    <div class="input-group">
+                      <span class="input-group-text bg-light border-end-0"><i class="bi bi-telephone text-muted"></i></span>
+                      <input type="text" class="form-control bg-light border-start-0 ps-0" id="phone" name="phone"
+                             value="<%= user.phone %>" required>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-end mt-4">
+                  <button type="submit" class="btn text-white rounded-pill px-4 shadow-sm" style="background: #0d9488;">
+                    <i class="bi bi-check2 me-1"></i> Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
