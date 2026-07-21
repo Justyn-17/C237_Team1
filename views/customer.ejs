@@ -1,85 +1,206 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
 
-<main class="container">
-  <div class="row mt-4">
-    <div class="col-12">
-      <div class="card rounded-4 border-0 shadow-sm">
-        <div class="card-body p-5">
-          <h1 class="fw-bold text-center mb-5" style="color: var(--primary-teal);">My Pets</h1>
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'dashboard' }) %>
 
-          <% if (pets.length === 0) { %>
-            <p class="text-muted text-center">You haven't added any pets yet.</p>
-          <% } else { %>
-            <div class="table-responsive mb-4">
-              <table class="table align-middle">
-                <thead>
-                  <tr>
-                    <th>Photo</th>
-                    <th>Name</th>
-                    <th>Species</th>
-                    <th>Breed</th>
-                    <th>Gender</th>
-                    <th>Age</th>
-                    <th class="text-end">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% pets.forEach(function(pet) { %>
-                    <tr>
-                      <td>
-                        <img src="<%= photoPath(pet.photo) || 'https://placehold.co/60x60?text=🐾' %>"
-                             alt="<%= pet.name %>" class="rounded-circle"
-                             style="width: 60px; height: 60px; object-fit: cover;">
-                      </td>
-                      <td class="fw-bold">🐾 <%= pet.name %></td>
-                      <td><%= pet.species %></td>
-                      <td><%= pet.breed || 'Unknown' %></td>
-                      <td><%= pet.gender %></td>
-                      <td><%= pet.age %></td>
-                      <td class="text-end">
-                        <div class="d-flex gap-2 justify-content-end">
-                          <a href="/pets/view/<%= pet.id %>"
-                             class="btn btn-info btn-sm text-white fw-semibold">📄 View Records</a>
-                          <a href="/pets/edit/<%= pet.id %>"
-                             class="btn btn-warning btn-sm text-white fw-semibold">✏️ Edit</a>
-                          <form action="/pets/delete/<%= pet.id %>" method="POST"
-                                onsubmit="return confirm('Delete <%= pet.name %>?');" class="d-inline">
-                            <button type="submit"
-                                    class="btn btn-danger btn-sm fw-semibold">🗑️ Delete</button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  <% }); %>
-                </tbody>
-              </table>
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
+
+    <div class="app-content">
+
+      <%
+        // The dashboard route may not pass stats yet — fall back to values we can
+        // derive from `pets` (or an em dash) instead of crashing the page.
+        const petCount        = typeof stats !== 'undefined' && stats ? stats.petCount : pets.length;
+        const upcomingAppts   = typeof stats !== 'undefined' && stats ? stats.upcomingAppts : null;
+        const pendingRems     = typeof stats !== 'undefined' && stats ? stats.pendingReminders : null;
+        const nextAppt        = typeof nextAppointment !== 'undefined' ? nextAppointment : null;
+        const ownerName       = typeof username !== 'undefined' && username ? username : 'there';
+      %>
+
+      <!-- Greeting -->
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Welcome back, <span class="accent"><%= ownerName %></span> 👋</h1>
+          <p class="page-sub">Here's everything happening with your pets today.</p>
+        </div>
+        <a href="/addpet" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <i class="bi bi-plus-lg me-1"></i> Register New Pet
+        </a>
+      </div>
+
+      <!-- Key numbers -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon teal"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div>
+              <div class="stat-label">My Pets</div>
+              <div class="stat-value"><%= petCount %></div>
             </div>
-          <% } %>
-
-          <div class="d-flex justify-content-center gap-3 flex-wrap">
-            <a href="/addpet"
-               class="btn btn-primary btn-lg rounded-pill fw-bold shadow-sm px-4">
-              ➕ Register New Pet
-            </a>
-
-            <a href="/appointments/new"
-               class="btn btn-secondary btn-lg rounded-pill fw-bold shadow-sm px-4">
-              📅 Book New Appointment
-            </a>
-
-            <!-- Student E: Care Reminders -->
-            <a href="/reminders"
-               class="btn btn-success btn-lg rounded-pill fw-bold shadow-sm px-4">
-              🔔 Care Reminders
-            </a>
           </div>
-
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-calendar-check-fill"></i></div>
+            <div>
+              <div class="stat-label">Upcoming Visits</div>
+              <div class="stat-value"><%= upcomingAppts !== null ? upcomingAppts : '—' %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon amber"><i class="bi bi-bell-fill"></i></div>
+            <div>
+              <div class="stat-label">Pending Reminders</div>
+              <div class="stat-value"><%= pendingRems !== null ? pendingRems : '—' %></div>
+            </div>
+          </div>
         </div>
       </div>
+
+      <div class="row g-3 mb-4">
+        <!-- Next appointment -->
+        <div class="col-lg-6">
+          <div class="panel h-100">
+            <div class="panel-head">
+              <h6 class="panel-title">Next Appointment</h6>
+              <a href="/appointments/my" class="btn btn-sm btn-outline-secondary rounded-pill px-3">View all</a>
+            </div>
+            <div class="panel-body">
+              <% if (nextAppt) { %>
+                <div class="d-flex align-items-center gap-3">
+                  <div class="stat-icon violet"><i class="bi bi-clock-fill"></i></div>
+                  <div>
+                    <div class="fw-bold text-dark fs-6"><%= nextAppt.pet_name %></div>
+                    <div class="text-muted small">
+                      <%= new Date(nextAppt.date).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) %>
+                      &middot; <%= String(nextAppt.start_time || '').slice(0, 5) %>
+                      <% if (nextAppt.vet_name) { %> &middot; with <%= nextAppt.vet_name %><% } %>
+                    </div>
+                    <div class="mt-2"><span class="chip chip-blue"><%= nextAppt.reason || 'General visit' %></span></div>
+                  </div>
+                </div>
+              <% } else { %>
+                <div class="text-center py-3">
+                  <div class="text-muted mb-3">No upcoming appointments booked.</div>
+                  <a href="/appointments/new" class="btn btn-primary btn-sm rounded-pill px-4">Book a visit</a>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="col-lg-6">
+          <div class="panel h-100">
+            <div class="panel-head">
+              <h6 class="panel-title">Quick Actions</h6>
+            </div>
+            <div class="panel-body">
+              <div class="row g-2">
+                <div class="col-sm-6">
+                  <a href="/appointments/new" class="quick-action">
+                    <i class="bi bi-calendar-plus-fill"></i>
+                    <div>
+                      <div class="qa-title">Book Visit</div>
+                      <div class="qa-sub">Pick a vet &amp; slot</div>
+                    </div>
+                  </a>
+                </div>
+                <div class="col-sm-6">
+                  <a href="/reminders" class="quick-action">
+                    <i class="bi bi-bell-fill"></i>
+                    <div>
+                      <div class="qa-title">Care Reminders</div>
+                      <div class="qa-sub">Track what's due</div>
+                    </div>
+                  </a>
+                </div>
+                <div class="col-sm-6">
+                  <a href="/addpet" class="quick-action">
+                    <i class="bi bi-plus-circle-fill"></i>
+                    <div>
+                      <div class="qa-title">Add a Pet</div>
+                      <div class="qa-sub">Register a new pet</div>
+                    </div>
+                  </a>
+                </div>
+                <div class="col-sm-6">
+                  <a href="/profile" class="quick-action">
+                    <i class="bi bi-person-circle"></i>
+                    <div>
+                      <div class="qa-title">My Profile</div>
+                      <div class="qa-sub">Update your details</div>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pets -->
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="fw-bold mb-0 text-dark">My Pets</h5>
+        <span class="chip chip-teal"><%= pets.length %> registered</span>
+      </div>
+
+      <% if (pets.length === 0) { %>
+        <div class="panel">
+          <div class="empty-state">
+            <span class="empty-emoji">🐾</span>
+            <h6>No pets yet</h6>
+            <p>Register your first pet to start booking visits and tracking care records.</p>
+            <a href="/addpet" class="btn btn-primary rounded-pill px-4 fw-semibold">Register New Pet</a>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="row g-3">
+          <% pets.forEach(function(pet) { %>
+            <div class="col-md-6 col-xl-4">
+              <div class="pet-card">
+                <div class="pet-card-top">
+                  <img src="<%= photoPath(pet.photo) || petPlaceholder %>"
+                       alt="<%= pet.name %>" class="pet-avatar">
+                </div>
+                <div class="pet-card-body">
+                  <h6 class="pet-name"><%= pet.name %></h6>
+                  <div class="pet-facts">
+                    <span class="chip chip-teal"><%= pet.species %></span>
+                    <span class="chip"><%= pet.breed || 'Unknown breed' %></span>
+                    <span class="chip"><%= pet.gender %></span>
+                    <span class="chip chip-violet"><%= pet.age %> yr</span>
+                  </div>
+
+                  <div class="d-flex gap-2 mt-auto">
+                    <a href="/pets/view/<%= pet.id %>" class="btn btn-primary btn-sm rounded-pill px-3 flex-grow-1">
+                      <i class="bi bi-file-earmark-text me-1"></i> Records
+                    </a>
+                    <a href="/pets/edit/<%= pet.id %>" class="btn btn-outline-secondary btn-sm rounded-pill px-3"
+                       title="Edit <%= pet.name %>">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form action="/pets/delete/<%= pet.id %>" method="POST"
+                          onsubmit="return confirm('Delete <%= pet.name %>?');" class="d-inline">
+                      <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                              title="Delete <%= pet.name %>">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
     </div>
-  </div>
-</main>
+  </main>
+</div>
 
 </body>
 </html>

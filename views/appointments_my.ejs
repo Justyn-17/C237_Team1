@@ -1,73 +1,187 @@
 <%- include('partials/header') %>
-<%- include('partials/navbar') %>
 
-<main class="container">
-  <div class="row mt-4">
-    <div class="col-md-10 mx-auto">
-      <h1 class="mb-4 fw-bold" style="color: var(--primary-teal);">
-        My Appointments
-      </h1>
+<div class="app-shell">
+  <%- include('partials/customer-sidebar', { activePage: 'appointments' }) %>
 
-      <% if (appointments.length > 0) { %>
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Pet</th>
-              <th>Vet</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Reason</th>
-              <th>Status / Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% appointments.forEach(a => { %>
-              <tr>
-                <td>
-                  <strong><%= a.pet_name %></strong><br>
-                  <small class="text-muted"><%= a.pet_species %></small>
-                </td>
-                <td><%= a.vet_name || '-' %></td>
-                <td><%= new Date(a.date).toLocaleDateString() %></td>
-                <td>
-                  <% 
-                    // Make sure start_time is a string and drop the seconds
-                    const timeStr = String(a.start_time || '');
-                    const prettyTime = timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr;
-                  %>
-                  <%= prettyTime %>
-                </td>
-                <td><%= a.reason || '-' %></td>
-                <td>
-                  <span class="badge bg-secondary text-capitalize">
-                    <%= a.status %>
-                  </span>
+  <main class="app-main">
+    <%- include('partials/customer-topbar') %>
 
-                  <% if (a.status === 'booked') { %>
-                    <form action="/appointments/<%= a.id %>/cancel" method="POST" class="d-inline ms-2"
-                          onsubmit="return confirm('Cancel this appointment?');">
-                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
-                        Cancel
-                      </button>
-                    </form>
-                  <% } %>
-                </td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      <% } else { %>
-        <p class="text-muted">
-          You have not booked any appointments yet.
-        </p>
-      <% } %>
+    <div class="app-content">
 
-      <a href="/appointments/new" class="btn btn-primary mt-3 rounded-pill px-4">
-        Book another appointment
-      </a>
+      <%
+        // Split into upcoming vs past so the list you care about sits at the top.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcoming = [];
+        const history = [];
+
+        appointments.forEach(a => {
+          const when = new Date(a.date);
+          when.setHours(0, 0, 0, 0);
+          if (a.status === 'booked' && when >= today) upcoming.push(a);
+          else history.push(a);
+        });
+
+        // Newest first for past visits
+        history.reverse();
+
+        const prettyTime = t => {
+          const s = String(t || '');
+          return s.length >= 5 ? s.slice(0, 5) : s;
+        };
+
+        const statusChip = s =>
+          s === 'booked'    ? 'chip-blue'  :
+          s === 'completed' ? 'chip-green' :
+          s === 'cancelled' ? 'chip-red'   : '';
+      %>
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">My <span class="accent">Appointments</span></h1>
+          <p class="page-sub">Track upcoming visits and review your pets' past consultations.</p>
+        </div>
+        <a href="/appointments/new" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <i class="bi bi-calendar-plus me-1"></i> Book Appointment
+        </a>
+      </div>
+
+      <!-- Summary strip -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-calendar-event-fill"></i></div>
+            <div>
+              <div class="stat-label">Upcoming</div>
+              <div class="stat-value"><%= upcoming.length %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon teal"><i class="bi bi-check2-circle"></i></div>
+            <div>
+              <div class="stat-label">Completed</div>
+              <div class="stat-value"><%= appointments.filter(a => a.status === 'completed').length %></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="stat-icon violet"><i class="bi bi-collection-fill"></i></div>
+            <div>
+              <div class="stat-label">Total Booked</div>
+              <div class="stat-value"><%= appointments.length %></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upcoming -->
+      <div class="panel mb-4">
+        <div class="panel-head">
+          <h6 class="panel-title">Upcoming Visits</h6>
+        </div>
+
+        <% if (upcoming.length === 0) { %>
+          <div class="empty-state">
+            <span class="empty-emoji">📅</span>
+            <h6>Nothing scheduled</h6>
+            <p>You have no upcoming appointments right now.</p>
+            <a href="/appointments/new" class="btn btn-primary rounded-pill px-4 fw-semibold">Book an appointment</a>
+          </div>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="app-table">
+              <thead>
+                <tr>
+                  <th>Pet</th>
+                  <th>Vet</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Reason</th>
+                  <th class="text-end">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% upcoming.forEach(a => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold text-dark"><%= a.pet_name %></div>
+                      <div class="text-muted small"><%= a.pet_species %></div>
+                    </td>
+                    <td><%= a.vet_name || '—' %></td>
+                    <td><%= new Date(a.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %></td>
+                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= a.reason || '—' %></td>
+                    <td class="text-end">
+                      <div class="d-flex align-items-center justify-content-end gap-2">
+                        <span class="chip <%= statusChip(a.status) %> text-capitalize"><%= a.status %></span>
+                        <form action="/appointments/<%= a.id %>/cancel" method="POST" class="d-inline"
+                              onsubmit="return confirm('Cancel this appointment?');">
+                          <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Cancel</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- History -->
+      <div class="panel">
+        <div class="panel-head">
+          <h6 class="panel-title">Past &amp; Cancelled</h6>
+        </div>
+
+        <% if (history.length === 0) { %>
+          <div class="empty-state">
+            <span class="empty-emoji">🗂️</span>
+            <h6>No history yet</h6>
+            <p>Completed and cancelled visits will show up here.</p>
+          </div>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="app-table">
+              <thead>
+                <tr>
+                  <th>Pet</th>
+                  <th>Vet</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Reason</th>
+                  <th class="text-end">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% history.forEach(a => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold text-dark"><%= a.pet_name %></div>
+                      <div class="text-muted small"><%= a.pet_species %></div>
+                    </td>
+                    <td><%= a.vet_name || '—' %></td>
+                    <td><%= new Date(a.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %></td>
+                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= a.reason || '—' %></td>
+                    <td class="text-end">
+                      <span class="chip <%= statusChip(a.status) %> text-capitalize"><%= a.status %></span>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+
     </div>
-  </div>
-</main>
+  </main>
+</div>
 
 </body>
 </html>

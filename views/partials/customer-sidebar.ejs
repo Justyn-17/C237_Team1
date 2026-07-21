@@ -1,0 +1,700 @@
+<% /* Shared customer sidebar + customer UI kit.
+    Usage: include('partials/customer-sidebar', { activePage: 'dashboard' })
+    activePage values: 'dashboard' | 'book' | 'appointments' | 'reminders' | 'profile'
+    Only customer-facing views include this file — staff views keep partials/staff-sidebar.
+    */
+    const _cActive = typeof activePage !== 'undefined' ? activePage : '';
+    const _cName = typeof username !== 'undefined' && username ? username : 'Pet Owner';
+    %>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+    <style>
+        /* ============================================================
+           Customer UI kit — scoped to .app-shell and its children so it
+           never leaks into staff pages.
+           ============================================================ */
+
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ---------- Sidebar ---------- */
+        .app-sidebar {
+            width: 260px;
+            background-color: #1e293b;
+            color: #cbd5e1;
+            flex-shrink: 0;
+            z-index: 1040;
+            transition: width .2s ease, transform .25s ease;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-sidebar.collapsed {
+            width: 76px;
+        }
+
+        .app-sidebar .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 1.25rem .5rem;
+        }
+
+        .app-sidebar.collapsed .sidebar-header {
+            justify-content: center;
+            padding: 1.5rem .5rem .5rem;
+        }
+
+        .app-sidebar .sidebar-brand {
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.15rem;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .app-sidebar.collapsed .sidebar-brand,
+        .app-sidebar.collapsed .sidebar-subtitle,
+        .app-sidebar.collapsed .nav-link-label,
+        .app-sidebar.collapsed .sidebar-user-meta {
+            display: none;
+        }
+
+        .app-sidebar .sidebar-toggle {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            transition: color .15s ease;
+        }
+
+        .app-sidebar .sidebar-toggle:hover {
+            color: #fff;
+        }
+
+        .app-sidebar .sidebar-subtitle {
+            color: #64748b;
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            padding: 0 1.25rem 1rem;
+            white-space: nowrap;
+        }
+
+        /* Signed-in user chip */
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: .7rem;
+            margin: 0 .75rem 1rem;
+            padding: .7rem .8rem;
+            background: rgba(255, 255, 255, .06);
+            border-radius: .75rem;
+            overflow: hidden;
+        }
+
+        .app-sidebar.collapsed .sidebar-user {
+            justify-content: center;
+            margin: 0 .5rem 1rem;
+            padding: .6rem 0;
+        }
+
+        .sidebar-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary-teal, #0d9488);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .sidebar-user-meta {
+            min-width: 0;
+        }
+
+        .sidebar-user-name {
+            color: #fff;
+            font-size: .9rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-role {
+            color: #94a3b8;
+            font-size: .72rem;
+        }
+
+        .app-sidebar .nav-link {
+            color: #cbd5e1;
+            padding: .7rem 1.1rem;
+            border-radius: .6rem;
+            margin: .15rem .75rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            font-size: .93rem;
+            transition: background-color .15s ease, color .15s ease;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .app-sidebar.collapsed .nav-link {
+            padding: .7rem 0;
+            justify-content: center;
+            margin: .15rem .5rem;
+        }
+
+        .app-sidebar .nav-link i {
+            font-size: 1.05rem;
+            width: 1.25rem;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .app-sidebar.collapsed .nav-link i {
+            font-size: 1.25rem;
+            width: auto;
+        }
+
+        .app-sidebar .nav-link:hover {
+            background-color: rgba(255, 255, 255, .07);
+            color: #fff;
+        }
+
+        .app-sidebar .nav-link.active {
+            background-color: var(--primary-teal, #0d9488);
+            color: #fff;
+        }
+
+        .app-sidebar .sidebar-footer {
+            border-top: 1px solid rgba(255, 255, 255, .08);
+            margin-top: auto;
+            padding: .5rem;
+        }
+
+        /* ---------- Main column ---------- */
+        .app-main {
+            flex: 1;
+            min-width: 0;
+            background-color: #f8fafc;
+        }
+
+        .app-content {
+            padding: 1.75rem;
+            max-width: 1240px;
+        }
+
+        /* ---------- Page header ---------- */
+        .page-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .page-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+
+        .page-title .accent {
+            color: var(--primary-teal, #0d9488);
+        }
+
+        .page-sub {
+            color: #64748b;
+            margin: .25rem 0 0;
+            font-size: .95rem;
+        }
+
+        /* ---------- Cards / panels ---------- */
+        .panel {
+            background: #fff;
+            border: 1px solid #e9eef4;
+            border-radius: 1rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+        }
+
+        .panel-body {
+            padding: 1.5rem;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.1rem 1.5rem;
+            border-bottom: 1px solid #eef2f7;
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+
+        /* ---------- Stat cards ---------- */
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: #fff;
+            border: 1px solid #e9eef4;
+            border-radius: 1rem;
+            padding: 1.25rem;
+            height: 100%;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px -12px rgba(15, 23, 42, .25);
+        }
+
+        .stat-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: .85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+        }
+
+        .stat-icon.teal   { background: #f0fdfa; color: #0d9488; }
+        .stat-icon.blue   { background: #eff6ff; color: #2563eb; }
+        .stat-icon.amber  { background: #fffbeb; color: #d97706; }
+        .stat-icon.violet { background: #f5f3ff; color: #7c3aed; }
+
+        .stat-label {
+            color: #64748b;
+            font-size: .82rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        /* ---------- Quick action tiles ---------- */
+        .quick-action {
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            padding: 1rem 1.15rem;
+            background: #fff;
+            border: 1px solid #e9eef4;
+            border-radius: .9rem;
+            text-decoration: none;
+            height: 100%;
+            transition: border-color .15s ease, transform .18s ease, box-shadow .18s ease;
+        }
+
+        .quick-action:hover {
+            border-color: var(--primary-teal, #0d9488);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -14px rgba(13, 148, 136, .6);
+        }
+
+        .quick-action i {
+            font-size: 1.2rem;
+            color: var(--primary-teal, #0d9488);
+        }
+
+        .quick-action .qa-title {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: .95rem;
+        }
+
+        .quick-action .qa-sub {
+            color: #94a3b8;
+            font-size: .8rem;
+        }
+
+        /* ---------- Pet cards ---------- */
+        .pet-card {
+            background: #fff;
+            border: 1px solid #e9eef4;
+            border-radius: 1rem;
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .pet-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 30px -20px rgba(15, 23, 42, .45);
+        }
+
+        .pet-card-top {
+            background: linear-gradient(135deg, #0d9488 0%, #115e59 100%);
+            height: 76px;
+            position: relative;
+        }
+
+        .pet-avatar {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #fff;
+            background: #f1f5f9;
+            position: absolute;
+            left: 1.25rem;
+            bottom: -42px;
+            box-shadow: 0 6px 12px -6px rgba(15, 23, 42, .4);
+        }
+
+        .pet-card-body {
+            padding: 3.25rem 1.25rem 1.25rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pet-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #0f172a;
+            margin: 0;
+        }
+
+        .pet-facts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin: .75rem 0 1rem;
+        }
+
+        /* ---------- Soft badges / chips ---------- */
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .3rem .65rem;
+            border-radius: 999px;
+            font-size: .78rem;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .chip-teal   { background: #f0fdfa; color: #0f766e; }
+        .chip-blue   { background: #eff6ff; color: #1d4ed8; }
+        .chip-amber  { background: #fffbeb; color: #b45309; }
+        .chip-red    { background: #fef2f2; color: #b91c1c; }
+        .chip-green  { background: #f0fdf4; color: #15803d; }
+        .chip-violet { background: #f5f3ff; color: #6d28d9; }
+
+        /* ---------- Tables ---------- */
+        .app-table {
+            width: 100%;
+            margin: 0;
+        }
+
+        .app-table thead th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: .76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            border-bottom: 1px solid #eef2f7;
+            padding: .85rem 1.5rem;
+            white-space: nowrap;
+        }
+
+        .app-table tbody td {
+            padding: .95rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+            color: #334155;
+        }
+
+        .app-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .app-table tbody tr:hover {
+            background: #fafcff;
+        }
+
+        /* ---------- Empty state ---------- */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+        }
+
+        .empty-state .empty-emoji {
+            font-size: 2.75rem;
+            display: block;
+            margin-bottom: .75rem;
+        }
+
+        .empty-state h6 {
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: .35rem;
+        }
+
+        .empty-state p {
+            color: #94a3b8;
+            margin-bottom: 1.25rem;
+        }
+
+        /* ---------- Forms ---------- */
+        .form-label-sm {
+            font-size: .8rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            margin-bottom: .4rem;
+        }
+
+        .app-input {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: .6rem;
+            padding: .65rem .85rem;
+            transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+        }
+
+        .app-input:focus {
+            background: #fff;
+            border-color: var(--primary-teal, #0d9488);
+            box-shadow: 0 0 0 .2rem rgba(13, 148, 136, .15);
+        }
+
+        .form-section-title {
+            font-size: .78rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--primary-teal, #0d9488);
+            margin-bottom: .9rem;
+        }
+
+        /* Segmented filter pills */
+        .filter-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+        }
+
+        .filter-pill {
+            padding: .35rem .9rem;
+            border-radius: 999px;
+            font-size: .84rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: #64748b;
+            background: #f1f5f9;
+            transition: background-color .15s ease, color .15s ease;
+        }
+
+        .filter-pill:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .filter-pill.active {
+            background: var(--primary-teal, #0d9488);
+            color: #fff;
+        }
+
+        /* ---------- Mobile ---------- */
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, .5);
+            z-index: 1035;
+            display: none;
+        }
+
+        .mobile-topbar {
+            display: none;
+            align-items: center;
+            gap: .75rem;
+            padding: .75rem 1rem;
+            background: #1e293b;
+            color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+
+        .mobile-topbar button {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 1.4rem;
+            line-height: 1;
+        }
+
+        @media (max-width: 991.98px) {
+            .app-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                transform: translateX(-100%);
+                width: 260px !important;
+            }
+
+            .app-sidebar.open {
+                transform: translateX(0);
+            }
+
+            .app-sidebar.collapsed .sidebar-brand,
+            .app-sidebar.collapsed .sidebar-subtitle,
+            .app-sidebar.collapsed .nav-link-label,
+            .app-sidebar.collapsed .sidebar-user-meta {
+                display: block;
+            }
+
+            .app-sidebar .sidebar-toggle {
+                display: none;
+            }
+
+            .sidebar-backdrop.show {
+                display: block;
+            }
+
+            .mobile-topbar {
+                display: flex;
+            }
+
+            .app-content {
+                padding: 1.1rem;
+            }
+
+            .app-table thead th,
+            .app-table tbody td {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+    </style>
+
+    <div class="sidebar-backdrop" id="appSidebarBackdrop"></div>
+
+    <nav class="app-sidebar" id="appSidebar">
+        <script>
+            // Applied immediately so the collapsed width doesn't flash on load
+            if (localStorage.getItem('customerSidebarCollapsed') === 'true') {
+                document.getElementById('appSidebar').classList.add('collapsed');
+            }
+        </script>
+
+        <div class="sidebar-header">
+            <span class="sidebar-brand">🐾 PetCenter</span>
+            <button class="sidebar-toggle" id="appSidebarToggle" title="Toggle sidebar" type="button">
+                <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+        </div>
+        <div class="sidebar-subtitle">My Pet Portal</div>
+
+        <div class="sidebar-user">
+            <div class="sidebar-user-avatar"><%= _cName.charAt(0) %></div>
+            <div class="sidebar-user-meta">
+                <div class="sidebar-user-name"><%= _cName %></div>
+                <div class="sidebar-user-role">Pet Owner</div>
+            </div>
+        </div>
+
+        <ul class="nav flex-column flex-grow-1">
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'dashboard' ? 'active' : '' %>" href="/customer-dashboard" title="My Pets">
+                    <i class="bi bi-house-heart-fill"></i> <span class="nav-link-label">My Pets</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'book' ? 'active' : '' %>" href="/appointments/new" title="Book Appointment">
+                    <i class="bi bi-calendar-plus-fill"></i> <span class="nav-link-label">Book Appointment</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'appointments' ? 'active' : '' %>" href="/appointments/my" title="My Appointments">
+                    <i class="bi bi-calendar-check-fill"></i> <span class="nav-link-label">My Appointments</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'reminders' ? 'active' : '' %>" href="/reminders" title="Care Reminders">
+                    <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'profile' ? 'active' : '' %>" href="/profile" title="My Profile">
+                    <i class="bi bi-person-circle"></i> <span class="nav-link-label">My Profile</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <a class="nav-link" href="/logout" title="Logout">
+                <i class="bi bi-box-arrow-right"></i> <span class="nav-link-label">Logout</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('appSidebar');
+            const toggleBtn = document.getElementById('appSidebarToggle');
+            const backdrop = document.getElementById('appSidebarBackdrop');
+            const mobileBtn = document.getElementById('appSidebarMobileToggle');
+
+            if (toggleBtn && sidebar) {
+                toggleBtn.addEventListener('click', function () {
+                    sidebar.classList.toggle('collapsed');
+                    localStorage.setItem('customerSidebarCollapsed',
+                        sidebar.classList.contains('collapsed') ? 'true' : 'false');
+                });
+            }
+
+            function closeMobile() {
+                sidebar.classList.remove('open');
+                backdrop.classList.remove('show');
+            }
+
+            if (mobileBtn && sidebar && backdrop) {
+                mobileBtn.addEventListener('click', function () {
+                    sidebar.classList.add('open');
+                    backdrop.classList.add('show');
+                });
+                backdrop.addEventListener('click', closeMobile);
+            }
+        });
+    </script>
