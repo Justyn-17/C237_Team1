@@ -82,6 +82,7 @@ app.use((req, res, next) => {
     res.locals.role = req.session.role || null;
     // Used by the customer sidebar to greet the signed-in owner
     res.locals.username = req.session.username || null;
+    res.locals.currentUser = { username: req.session.username, role: req.session.role };
     next();
 });
 
@@ -118,7 +119,7 @@ app.use((req, res, next) => {
                 console.error("DB Error checking status:", err);
                 return next();
             }
-            if (results.length > 0 && results[0].status !== 'active') {
+            if (results.length > 0 && results[0].status === 'deleted') {
                 req.session.destroy(() => {
                     res.redirect('/login');
                 });
@@ -642,29 +643,62 @@ app.get('/staff/pets/view/:id', requireRole('staff'), (req, res) => {
 
 // Staff: Create user
 app.post('/staff/create-user', requireRole('staff'), async (req, res) => {
-    const { name, username, phone } = req.body;
-    if (!name || !username || !phone) {
-        return res.status(400).send("Name, username, and phone are required");
+    let { users } = req.body;
+    
+    if (!users) {
+        return res.status(400).send("No users provided");
+    }
+    
+    // Normalize users to array (body-parser might parse it as an object with numeric keys)
+    if (!Array.isArray(users)) {
+        users = Object.values(users);
     }
 
-    try {
-        const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(accessCode, salt);
+    const addedUsers = [];
+    const failedUsers = [];
 
-        const sql = "INSERT INTO users (name, username, phone, password_hash, role, requires_password_reset) VALUES (?, ?, ?, ?, 'staff', true)";
-        db.query(sql, [name, username, phone, hashedPassword], (err, result) => {
+    try {
+        for (const user of users) {
+            const { name, username, phone } = user;
+            if (!name || !username || !phone) {
+                failedUsers.push({ username: username || 'Unknown', error: 'Missing name, username, or phone.' });
+                continue;
+            }
+
+            try {
+                const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(accessCode, salt);
+
+                await new Promise((resolve, reject) => {
+                    const sql = "INSERT INTO users (name, username, phone, password_hash, role, requires_password_reset) VALUES (?, ?, ?, ?, 'staff', true)";
+                    db.query(sql, [name, username, phone, hashedPassword], (err, result) => {
+                        if (err) return reject(err);
+                        resolve(result);
+                    });
+                });
+
+                addedUsers.push({ username, accessCode });
+            } catch (err) {
+                console.error("Database error during staff creation for user", username, ":", err);
+                let errorMsg = "Database error";
+                if (err.code === 'ER_DUP_ENTRY') {
+                    errorMsg = "Username or phone already exists.";
+                }
+                failedUsers.push({ username, error: errorMsg });
+            }
+        }
+
+        db.query("SELECT * FROM users", (err, results) => {
             if (err) {
-                console.error("Database error during staff creation:", err);
+                console.error("Error fetching users:", err);
                 return res.status(500).send("Database error");
             }
-            db.query("SELECT * FROM users", (err, results) => {
-                if (err) return res.status(500).send("Database error");
-                res.render('user-directory', { users: results, accessCode: accessCode, newUsername: username });
-            });
+            res.render('user-directory', { users: results, addedUsers, failedUsers });
         });
+
     } catch (error) {
-        console.error("Error hashing password:", error);
+        console.error("Critical error in staff bulk creation:", error);
         res.status(500).send("Internal server error");
     }
 });
@@ -700,11 +734,11 @@ app.post('/setup-password', async (req, res) => {
         const password_hash = await bcrypt.hash(new_password, 10);
         const security_answer_hash = securityAnswer ? await bcrypt.hash(securityAnswer, 10) : null;
 
-        let sql = "UPDATE users SET password_hash = ?, requires_password_reset = false WHERE username = ?";
+        let sql = "UPDATE users SET password_hash = ?, requires_password_reset = false, password_reset_requested = false WHERE username = ?";
         let params = [password_hash, req.session.username];
 
         if (securityQuestion && securityAnswer) {
-            sql = "UPDATE users SET password_hash = ?, requires_password_reset = false, security_question = ?, security_answer_hash = ? WHERE username = ?";
+            sql = "UPDATE users SET password_hash = ?, requires_password_reset = false, password_reset_requested = false, security_question = ?, security_answer_hash = ? WHERE username = ?";
             params = [password_hash, securityQuestion, security_answer_hash, req.session.username];
         }
 
@@ -837,9 +871,19 @@ app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
             console.error("Error requesting deletion:", err);
             return res.status(500).send("Database error");
         }
-        req.session.destroy(() => {
-            res.redirect('/login');
-        });
+        // Do not destroy the session; they are allowed to use the app until a staff approves deletion
+        res.redirect('/customer-dashboard');
+    });
+});
+
+app.post('/cancel-deletion-request/:id', (req, res) => {
+    const targetId = req.params.id;
+    db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
+        if (err) {
+            console.error("Error canceling deletion:", err);
+            return res.status(500).send("Database error");
+        }
+        res.redirect('/user-directory');
     });
 });
 
