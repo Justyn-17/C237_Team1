@@ -71,6 +71,7 @@ app.use(session({
 // Provide session state to all views so navbar logic works
 app.use((req, res, next) => {
     res.locals.role = req.session.role || null;
+    res.locals.username = req.session.username || null;
     next();
 });
 
@@ -312,11 +313,9 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
             return res.status(500).send("Database error");
         }
 
-        // Admin sees clinic-wide numbers; a regular staff (vet) sees only their own.
-        const apptTodaySql = isAdmin
-            ? "SELECT COUNT(*) AS count FROM appointments WHERE date = CURDATE() AND status <> 'cancelled'"
-            : "SELECT COUNT(*) AS count FROM appointments WHERE date = CURDATE() AND status <> 'cancelled' AND vet_id = ?";
-        const apptTodayParams = isAdmin ? [] : [req.session.userId];
+        // Everyone sees clinic-wide numbers.
+        const apptTodaySql = "SELECT COUNT(*) AS count FROM appointments WHERE date = CURDATE() AND status <> 'cancelled'";
+        const apptTodayParams = [];
 
         db.query(apptTodaySql, apptTodayParams, (err2, apptRows) => {
             if (err2) {
@@ -324,22 +323,14 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
                 return res.status(500).send("Database error");
             }
 
-            const recentSql = isAdmin
-                ? `SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
+            const recentSql = `SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
                    FROM appointments a
                    LEFT JOIN pets p ON a.pet_id = p.id
                    LEFT JOIN users o ON a.owner_id = o.id
                    LEFT JOIN users v ON a.vet_id = v.id
-                   ORDER BY a.date DESC, a.start_time DESC
-                   LIMIT 10`
-                : `SELECT a.*, p.name AS pet_name, o.name AS owner_name
-                   FROM appointments a
-                   LEFT JOIN pets p ON a.pet_id = p.id
-                   LEFT JOIN users o ON a.owner_id = o.id
-                   WHERE a.vet_id = ?
-                   ORDER BY a.date DESC, a.start_time DESC
+                   ORDER BY a.created_at DESC
                    LIMIT 10`;
-            const recentParams = isAdmin ? [] : [req.session.userId];
+            const recentParams = [];
 
             db.query(recentSql, recentParams, (err3, recentRows) => {
                 if (err3) {
@@ -347,10 +338,8 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
                     return res.status(500).send("Database error");
                 }
 
-                const monthlySql = isAdmin
-                    ? "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' GROUP BY MONTH(date)"
-                    : "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' AND vet_id = ? GROUP BY MONTH(date)";
-                const monthlyParams = isAdmin ? [] : [req.session.userId];
+                const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE status <> 'cancelled' GROUP BY MONTH(date)";
+                const monthlyParams = [];
 
                 db.query(monthlySql, monthlyParams, (err4, monthlyRows) => {
                     if (err4) {
@@ -372,16 +361,25 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
                             return res.status(500).send("Database error");
                         }
 
-                        const speciesBreakdown = [0, 0, 0, 0, 0];
+                        const speciesMap = {};
                         speciesRows.forEach(row => {
-                            const species = (row.species || "").toLowerCase().trim();
-                            const count = row.count;
-                            if (species === 'dog' || species === 'dogs') speciesBreakdown[0] += count;
-                            else if (species === 'cat' || species === 'cats') speciesBreakdown[1] += count;
-                            else if (species === 'bird' || species === 'birds') speciesBreakdown[2] += count;
-                            else if (species === 'rabbit' || species === 'rabbits') speciesBreakdown[3] += count;
-                            else speciesBreakdown[4] += count;
+                            let species = (row.species || "").trim().toLowerCase();
+                            if (!species) {
+                                species = "Unspecified";
+                            } else {
+                                if (species === 'dog') species = 'dogs';
+                                if (species === 'cat') species = 'cats';
+                                if (species === 'bird') species = 'birds';
+                                if (species === 'rabbit') species = 'rabbits';
+                                species = species.charAt(0).toUpperCase() + species.slice(1);
+                            }
+                            speciesMap[species] = (speciesMap[species] || 0) + row.count;
                         });
+
+                        const speciesBreakdown = Object.keys(speciesMap).map(label => ({
+                            label,
+                            count: speciesMap[label]
+                        })).sort((a, b) => b.count - a.count);
 
                         res.render('staff', {
                             totalPets: petRows[0].count,
@@ -397,8 +395,28 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
     });
 });
 
+// API for Recent Activity Polling
+app.get('/api/recent-activity', requireRole('staff'), (req, res) => {
+    const recentSql = `SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
+                   FROM appointments a
+                   LEFT JOIN pets p ON a.pet_id = p.id
+                   LEFT JOIN users o ON a.owner_id = o.id
+                   LEFT JOIN users v ON a.vet_id = v.id
+                   ORDER BY a.created_at DESC
+                   LIMIT 10`;
+                   
+    db.query(recentSql, [], (err, results) => {
+        if (err) {
+            console.error("Error fetching recent appointments API:", err);
+            return res.status(500).json({ error: "Database error" });
+        }
+        res.json(results);
+    });
+});
+
 // Vet Dashboard: a single vet's own patients and appointments
 app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
+    if (req.session.username === 'admin') return res.redirect('/staff-dashboard');
     const vetId = req.session.userId;
 
     db.query(
@@ -434,7 +452,7 @@ app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
                                 return res.status(500).send("Database error");
                             }
 
-                            const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' AND vet_id = ? GROUP BY MONTH(date)";
+                            const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE status <> 'cancelled' AND vet_id = ? GROUP BY MONTH(date)";
                             db.query(monthlySql, [vetId], (err4, monthlyRows) => {
                                 if (err4) {
                                     console.error("Error fetching vet monthly appointments:", err4);
@@ -459,16 +477,25 @@ app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
                                         return res.status(500).send("Database error");
                                     }
 
-                                    const speciesBreakdown = [0, 0, 0, 0, 0];
+                                    const speciesMap = {};
                                     speciesRows.forEach(row => {
-                                        const species = (row.species || "").toLowerCase().trim();
-                                        const count = row.count;
-                                        if (species === 'dog' || species === 'dogs') speciesBreakdown[0] += count;
-                                        else if (species === 'cat' || species === 'cats') speciesBreakdown[1] += count;
-                                        else if (species === 'bird' || species === 'birds') speciesBreakdown[2] += count;
-                                        else if (species === 'rabbit' || species === 'rabbits') speciesBreakdown[3] += count;
-                                        else speciesBreakdown[4] += count;
+                                        let species = (row.species || "").trim().toLowerCase();
+                                        if (!species) {
+                                            species = "Unspecified";
+                                        } else {
+                                            if (species === 'dog') species = 'dogs';
+                                            if (species === 'cat') species = 'cats';
+                                            if (species === 'bird') species = 'birds';
+                                            if (species === 'rabbit') species = 'rabbits';
+                                            species = species.charAt(0).toUpperCase() + species.slice(1);
+                                        }
+                                        speciesMap[species] = (speciesMap[species] || 0) + row.count;
                                     });
+
+                                    const speciesBreakdown = Object.keys(speciesMap).map(label => ({
+                                        label,
+                                        count: speciesMap[label]
+                                    })).sort((a, b) => b.count - a.count);
 
                                     res.render('vet_dashboard', {
                                         myPatients: patientRows[0].count,
@@ -850,63 +877,7 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
     });
 });
 
-// ==========================================
-// VET DASHBOARD & REPORTING
-// ==========================================
-app.get('/vet-dashboard', requireRole('staff'), (req, res) => {
-    // 1. Grab the filter from the URL if the user selected one (e.g., ?status=completed)
-    const statusFilter = req.query.status;
 
-    // 2. Metrics Queries
-    const petsQuery = "SELECT COUNT(*) AS totalPets FROM pets";
-    const todayApptsQuery = "SELECT COUNT(*) AS todayAppts FROM appointments WHERE date = CURDATE()";
-
-    // 3. Report Query (Joining appointments and pets tables)
-    let reportQuery = `
-        SELECT a.id, a.date, a.start_time, a.reason, a.status, p.name AS pet_name, p.species 
-        FROM appointments a
-        JOIN pets p ON a.pet_id = p.id
-    `;
-    let queryParams = [];
-
-    // Apply the filter if one is selected
-    if (statusFilter && ['booked', 'completed', 'cancelled'].includes(statusFilter)) {
-        reportQuery += " WHERE a.status = ? ORDER BY a.date DESC, a.start_time ASC";
-        queryParams.push(statusFilter);
-    } else {
-        reportQuery += " ORDER BY a.date DESC, a.start_time ASC";
-    }
-
-    // Execute queries in sequence
-    db.query(petsQuery, (err1, petRes) => {
-        if (err1) {
-            console.error("Error fetching pet stats:", err1);
-            return res.status(500).send("Database error");
-        }
-
-        db.query(todayApptsQuery, (err2, todayRes) => {
-            if (err2) {
-                console.error("Error fetching today's appointments:", err2);
-                return res.status(500).send("Database error");
-            }
-
-            db.query(reportQuery, queryParams, (err3, reportRes) => {
-                if (err3) {
-                    console.error("Error fetching report data:", err3);
-                    return res.status(500).send("Database error");
-                }
-
-                // Send all data to the EJS view
-                res.render('dashboard', {
-                    totalPets: petRes[0].totalPets,
-                    todayAppts: todayRes[0].todayAppts,
-                    appointments: reportRes,
-                    currentFilter: statusFilter || ''
-                });
-            });
-        });
-    });
-});
 
 // ==========================================
 // PET CRUD ROUTES

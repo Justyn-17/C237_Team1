@@ -216,11 +216,13 @@
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
                 </a>
             </li>
+            <% if (locals.username !== 'admin') { %>
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'vet' ? 'active' : '' %>" href="/staff/vet-dashboard" title="Vet Dashboard">
                     <i class="bi bi-clipboard2-pulse"></i> <span class="nav-link-label">Vet Dashboard</span>
                 </a>
             </li>
+            <% } %>
         </ul>
 
         <div class="sidebar-footer p-2">

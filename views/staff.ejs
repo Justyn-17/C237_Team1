@@ -9,7 +9,7 @@
         <div class="container-fluid p-4">
 
           <div class="mb-4">
-            <h1 class="h3 fw-bold mb-1" style="color: var(--primary-teal);">Staff Control Panel</h1>
+            <h1 class="h3 fw-bold mb-1" style="color: var(--primary-teal);">Global Clinic Dashboard</h1>
             <p class="text-muted mb-0">Overview of clinic activity and quick access to your modules.</p>
           </div>
 
@@ -32,7 +32,7 @@
                         <i class="bi bi-heart-pulse-fill"></i>
                       </div>
                       <div>
-                        <div class="text-muted small">Total Pets</div>
+                        <div class="text-muted small">Total Registered Pets (Clinic-Wide)</div>
                         <div class="fs-3 fw-bold text-dark">
                           <%= totalPetsCount !==null ? totalPetsCount : '—' %>
                         </div>
@@ -47,7 +47,7 @@
                         <i class="bi bi-calendar-check"></i>
                       </div>
                       <div>
-                        <div class="text-muted small">Appointments Today</div>
+                        <div class="text-muted small">Clinic Appointments Today</div>
                         <div class="fs-3 fw-bold text-dark">
                           <%= apptTodayCount !==null ? apptTodayCount : '—' %>
                         </div>
@@ -63,7 +63,7 @@
                   <div class="card chart-card h-100 border-0 rounded-4 shadow-sm">
                     <div class="card-body">
                       <h6 class="fw-bold mb-3">
-                        Monthly Appointments
+                        Clinic-Wide Appointment Volume (All-Time)
                       </h6>
                       <canvas id="monthlyAppointmentsChart"></canvas>
                     </div>
@@ -73,7 +73,7 @@
                   <div class="card chart-card h-100 border-0 rounded-4 shadow-sm">
                     <div class="card-body">
                       <h6 class="fw-bold mb-3">
-                        Pet Species Breakdown
+                        Global Pet Demographics
                       </h6>
                       <canvas id="speciesBreakdownChart"></canvas>
                     </div>
@@ -91,7 +91,7 @@
                 <div class="card border-0 rounded-4 shadow-sm">
                   <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h6 class="fw-bold mb-0">Recent Appointments</h6>
+                      <h6 class="fw-bold mb-0">Recent Clinic Activity</h6>
                       <a href="/appointments" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All</a>
                     </div>
                     <div class="table-responsive">
@@ -105,7 +105,7 @@
                             <th scope="col">Status</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="recentActivityBody">
                           <% if (apptRows.length) { %>
                             <% apptRows.forEach(a=> { %>
                               <tr>
@@ -159,8 +159,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
-    const monthlyAppointments = <% - typeof monthlyAppointments !== 'undefined' ? JSON.stringify(monthlyAppointments).replace(/</g, '\\u003c') : '[]' %>;
-    const speciesBreakdown = <% - typeof speciesBreakdown !== 'undefined' ? JSON.stringify(speciesBreakdown).replace(/</g, '\\u003c') : '[]' %>;
+    const monthlyAppointments = <%- typeof monthlyAppointments !== 'undefined' ? JSON.stringify(monthlyAppointments).replace(/</g, '\\u003c') : '[]' %>;
+    const speciesBreakdown = <%- typeof speciesBreakdown !== 'undefined' ? JSON.stringify(speciesBreakdown).replace(/</g, '\\u003c') : '[]' %>;
+    const speciesLabels = speciesBreakdown.map(item => item.label);
+    const speciesData = speciesBreakdown.map(item => item.count);
+    const palette = ['#0f766e', '#115e59', '#34d399', '#6ee7b7', '#cbd5e1', '#0d9488', '#14b8a6', '#5eead4', '#99f6e4', '#ccfbf1'];
+    const speciesColors = speciesBreakdown.map((_, i) => palette[i % palette.length]);
 
     new Chart(document.getElementById('monthlyAppointmentsChart'), {
       type: 'bar',
@@ -183,10 +187,10 @@
     new Chart(document.getElementById('speciesBreakdownChart'), {
       type: 'pie',
       data: {
-        labels: ['Dogs', 'Cats', 'Birds', 'Rabbits', 'Other'],
+        labels: speciesLabels,
         datasets: [{
-          data: speciesBreakdown,
-          backgroundColor: ['#0f766e', '#115e59', '#34d399', '#6ee7b7', '#cbd5e1'],
+          data: speciesData,
+          backgroundColor: speciesColors,
           borderWidth: 2,
           borderColor: '#fff'
         }]
@@ -198,6 +202,61 @@
         }
       }
     });
+
+    function fetchRecentActivity() {
+      fetch('/api/recent-activity')
+        .then(response => response.json())
+        .then(data => {
+          const tbody = document.getElementById('recentActivityBody');
+          if (!tbody) return;
+
+          if (data.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  No appointment data passed to this page yet.
+                  <br>
+                  <a href="/appointments" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
+                    View full appointments list
+                  </a>
+                </td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = data.map(a => {
+            const petDisplay = a.pet_name || ('#' + a.pet_id);
+            const ownerDisplay = a.owner_name || '-';
+            const dateStr = a.date ? (new Date(a.date)).toISOString().slice(0, 10) : a.date;
+            const timeStr = a.start_time ? String(a.start_time).slice(0, 5) : '';
+
+            let statusBadge = '';
+            if (a.status === 'booked') {
+              statusBadge = '<span class="badge bg-primary">Booked</span>';
+            } else if (a.status === 'completed') {
+              statusBadge = '<span class="badge bg-success">Completed</span>';
+            } else if (a.status === 'cancelled') {
+              statusBadge = '<span class="badge bg-danger">Cancelled</span>';
+            } else {
+              statusBadge = `<span class="badge bg-secondary">${a.status}</span>`;
+            }
+
+            return `
+              <tr>
+                <td>${petDisplay}</td>
+                <td>${ownerDisplay}</td>
+                <td>${dateStr}</td>
+                <td>${timeStr}</td>
+                <td>${statusBadge}</td>
+              </tr>
+            `;
+          }).join('');
+        })
+        .catch(err => console.error('Error fetching recent activity:', err));
+    }
+
+    setInterval(fetchRecentActivity, 10000);
   </script>
 
   </body>
