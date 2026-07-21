@@ -1,0 +1,223 @@
+<%- include('partials/header') %>
+    
+        <!--
+    HEADS UP: there is no route in app.js that renders this view yet.
+    Add something like:
+
+        app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => { ... res.render('vet_dashboard', {...}) ... });
+
+    (see the optional app.js snippet provided separately in chat — not applied to your
+    project automatically, since app.js isn't being touched here).
+    Until that route exists, the sidebar link to this page will 404.
+-->
+
+        <div class="staff-shell">
+            <%- include('partials/staff-sidebar', { activePage: 'vet' }) %>
+
+                <main class="staff-main">
+
+
+                    <div class="container-fluid p-4">
+
+                        <div class="mb-4">
+                            <h1 class="h3 fw-bold mb-1" style="color: var(--primary-teal);">Vet Dashboard</h1>
+                            <p class="text-muted mb-0">Your patients and appointments at a glance.</p>
+                        </div>
+
+                        <!--
+                Key Metrics
+                No route passes data here yet — falls back to "—" instead of erroring.
+                Swap `myPatientsCount` / `myApptTodayCount` for real query results once
+                a /staff/vet-dashboard route is added (see chat for a starting query).
+            -->
+                        <% const myPatientsCount=typeof myPatients !=='undefined' ? myPatients : null; %>
+                            <% const myApptTodayCount=typeof myAppointmentsToday !=='undefined' ? myAppointmentsToday :
+                                null; %>
+
+                                <div class="row g-4 mb-4">
+                                    <div class="col-md-6 col-lg-3">
+                                        <div class="card metric-card h-100 border-0 rounded-4 shadow-sm">
+                                            <div class="card-body d-flex align-items-center gap-3">
+                                                <div class="metric-icon"
+                                                    style="background-color: #f0fdfa; color: #0d9488;">
+                                                    <i class="bi bi-heart-pulse-fill"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="text-muted small">My Patients</div>
+                                                    <div class="fs-3 fw-bold text-dark">
+                                                        <%= myPatientsCount !==null ? myPatientsCount : '—' %>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <div class="card metric-card h-100 border-0 rounded-4 shadow-sm">
+                                            <div class="card-body d-flex align-items-center gap-3">
+                                                <div class="metric-icon"
+                                                    style="background-color: #f0fdfa; color: #0d9488;">
+                                                    <i class="bi bi-calendar-check"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="text-muted small">My Appointments Today</div>
+                                                    <div class="fs-3 fw-bold text-dark">
+                                                        <%= myApptTodayCount !==null ? myApptTodayCount : '—' %>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Temporary Analytics (mock data placeholders) -->
+                                <div class="row g-4 mb-4">
+                                    <div class="col-lg-7">
+                                        <div class="card chart-card h-100 border-0 rounded-4 shadow-sm">
+                                            <div class="card-body">
+                                                <h6 class="fw-bold mb-3">
+                                                    Monthly Appointments
+                                                </h6>
+                                                <canvas id="vetMonthlyAppointmentsChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-5">
+                                        <div class="card chart-card h-100 border-0 rounded-4 shadow-sm">
+                                            <div class="card-body">
+                                                <h6 class="fw-bold mb-3">
+                                                    Pet Species Breakdown
+                                                </h6>
+                                                <canvas id="vetSpeciesBreakdownChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- My Upcoming Appointments -->
+                                <% const myApptRows=typeof myAppointments !=='undefined' ? myAppointments : []; %>
+                                    <div class="card border-0 rounded-4 shadow-sm">
+                                        <div class="card-body p-4">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h6 class="fw-bold mb-0">My Upcoming Appointments</h6>
+                                                <a href="/appointments"
+                                                    class="btn btn-sm btn-outline-primary rounded-pill px-3">View
+                                                    All</a>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table class="table table-striped align-middle mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th scope="col">Pet</th>
+                                                            <th scope="col">Owner</th>
+                                                            <th scope="col">Date</th>
+                                                            <th scope="col">Time</th>
+                                                            <th scope="col">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <% if (myApptRows.length) { %>
+                                                            <% myApptRows.forEach(a=> { %>
+                                                                <tr>
+                                                                    <td>
+                                                                        <%= a.pet_name || ('#' + a.pet_id) %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= a.owner_name || '-' %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= a.date && a.date.toISOString ?
+                                                                            a.date.toISOString().slice(0, 10) : a.date
+                                                                            %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= String(a.start_time || '' ).slice(0, 5) %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <% if (a.status==='booked' ) { %>
+                                                                            <span class="badge bg-primary">Booked</span>
+                                                                            <% } else if (a.status==='completed' ) { %>
+                                                                                <span
+                                                                                    class="badge bg-success">Completed</span>
+                                                                                <% } else if (a.status==='cancelled' ) {
+                                                                                    %>
+                                                                                    <span
+                                                                                        class="badge bg-danger">Cancelled</span>
+                                                                                    <% } else { %>
+                                                                                        <span
+                                                                                            class="badge bg-secondary">
+                                                                                            <%= a.status %>
+                                                                                        </span>
+                                                                                        <% } %>
+                                                                    </td>
+                                                                </tr>
+                                                                <% }) %>
+                                                                    <% } else { %>
+                                                                        <tr>
+                                                                            <td colspan="5"
+                                                                                class="text-center text-muted py-4">
+                                                                                No appointment data passed to this page
+                                                                                yet.
+                                                                                <br>
+                                                                                <a href="/appointments"
+                                                                                    class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
+                                                                                    View full appointments list
+                                                                                </a>
+                                                                            </td>
+                                                                        </tr>
+                                                                        <% } %>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                    </div>
+                </main>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+        <script>
+            const monthlyAppointments = <%- typeof monthlyAppointments !== 'undefined' ? JSON.stringify(monthlyAppointments).replace(/</g, '\\u003c') : '[]' %>;
+            const speciesBreakdown = <%- typeof speciesBreakdown !== 'undefined' ? JSON.stringify(speciesBreakdown).replace(/</g, '\\u003c') : '[]' %>;
+
+            new Chart(document.getElementById('vetMonthlyAppointmentsChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Appointments',
+                        data: monthlyAppointments,
+                        backgroundColor: '#0d9488',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            new Chart(document.getElementById('vetSpeciesBreakdownChart'), {
+                type: 'pie',
+                data: {
+                    labels: ['Dogs', 'Cats', 'Birds', 'Rabbits', 'Other'],
+                    datasets: [{
+                        data: speciesBreakdown,
+                        backgroundColor: ['#0f766e', '#115e59', '#34d399', '#6ee7b7', '#cbd5e1'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { boxWidth: 20 } } 
+                    }
+                }
+            });
+        </script>
+
+        </body>
+
+        </html>

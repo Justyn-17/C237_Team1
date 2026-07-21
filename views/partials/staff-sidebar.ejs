@@ -1,0 +1,246 @@
+<% /* Shared staff sidebar. Usage: include('partials/staff-sidebar', { activePage: 'dashboard' })
+    activePage values: 'dashboard' | 'appointments' | 'users' | 'pets' | 'settings' | 'reminders' | 'vet'
+    Only staff.ejs and vet_dashboard.ejs include this file — customer views are untouched.
+    */
+    const _active = typeof activePage !== 'undefined' ? activePage : '';
+    %>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+    <style>
+        /* Scoped to .staff-shell / .staff-sidebar / .staff-main */
+        .staff-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .staff-sidebar {
+            width: 260px;
+            background-color: #1e293b !important;
+            color: #cbd5e1;
+            flex-shrink: 0;
+            z-index: 1040;
+            transition: width 0.2s ease;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .staff-sidebar.collapsed {
+            width: 72px;
+        }
+
+        .staff-sidebar .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 1.25rem .5rem;
+        }
+
+        .staff-sidebar.collapsed .sidebar-header {
+            justify-content: center;
+            padding: 1.5rem 0.5rem .5rem;
+        }
+
+        .staff-sidebar .sidebar-brand {
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.15rem;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .staff-sidebar.collapsed .sidebar-brand {
+            display: none;
+        }
+
+        .staff-sidebar .sidebar-toggle {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s ease;
+        }
+        
+        .staff-sidebar .sidebar-toggle:hover {
+            color: #fff;
+        }
+
+        .staff-sidebar .sidebar-subtitle {
+            color: #64748b;
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            padding: 0 1.25rem 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .staff-sidebar.collapsed .sidebar-subtitle {
+            display: none;
+        }
+
+        .staff-sidebar .nav-link {
+            color: #cbd5e1;
+            padding: .7rem 1.1rem;
+            border-radius: .6rem;
+            margin: .15rem .75rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            font-size: .93rem;
+            transition: background-color .15s ease, color .15s ease;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .staff-sidebar.collapsed .nav-link {
+            padding: .7rem 0;
+            justify-content: center;
+            margin: .15rem .5rem;
+        }
+
+        .staff-sidebar .nav-link i {
+            font-size: 1.05rem;
+            width: 1.25rem;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .staff-sidebar.collapsed .nav-link i {
+            font-size: 1.25rem;
+            width: auto;
+        }
+
+        .staff-sidebar .nav-link-label {
+            transition: opacity 0.2s;
+        }
+
+        .staff-sidebar.collapsed .nav-link-label {
+            display: none;
+        }
+
+        .staff-sidebar .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.07);
+            color: #fff;
+        }
+
+        .staff-sidebar .nav-link.active {
+            background-color: var(--primary-teal, #0d9488);
+            color: #fff;
+        }
+
+        .staff-sidebar .sidebar-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: auto;
+        }
+        
+        .staff-sidebar.collapsed .sidebar-footer {
+            display: flex;
+            justify-content: center;
+            padding: 1rem 0 !important;
+        }
+
+        .staff-main {
+            flex: 1;
+            min-width: 0;
+            background-color: #f8fafc;
+        }
+
+        .metric-card .metric-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: .75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+        }
+
+        .chart-card canvas {
+            max-height: 320px;
+        }
+    </style>
+
+    <nav class="staff-sidebar" id="staffSidebar">
+        <script>
+            // Execute immediately to prevent FOUC
+            if (localStorage.getItem('staffSidebarCollapsed') === 'true') {
+                document.getElementById('staffSidebar').classList.add('collapsed');
+            }
+        </script>
+
+        <div class="sidebar-header">
+            <span class="sidebar-brand">🐾 PetCenter</span>
+            <button class="sidebar-toggle" id="sidebarToggleBtn" title="Toggle Sidebar">
+                <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+        </div>
+        <div class="sidebar-subtitle">Staff Panel</div>
+
+        <ul class="nav flex-column flex-grow-1">
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'dashboard' ? 'active' : '' %>" href="/staff-dashboard" title="Dashboard">
+                    <i class="bi bi-speedometer2"></i> <span class="nav-link-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'appointments' ? 'active' : '' %>" href="/appointments" title="Manage Appointments">
+                    <i class="bi bi-calendar-check"></i> <span class="nav-link-label">Manage Appointments</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'users' ? 'active' : '' %>" href="/user-directory" title="User Management">
+                    <i class="bi bi-people-fill"></i> <span class="nav-link-label">User Management</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'pets' ? 'active' : '' %>" href="/staff/pets" title="Pet Records">
+                    <i class="bi bi-heart-pulse-fill"></i> <span class="nav-link-label">Pet Records</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'settings' ? 'active' : '' %>" href="/staff/settings" title="System Settings">
+                    <i class="bi bi-gear-fill"></i> <span class="nav-link-label">System Settings</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'reminders' ? 'active' : '' %>" href="/staff/reminders" title="Care Reminders">
+                    <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'vet' ? 'active' : '' %>" href="/staff/vet-dashboard" title="Vet Dashboard">
+                    <i class="bi bi-clipboard2-pulse"></i> <span class="nav-link-label">Vet Dashboard</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer p-2">
+            <a class="nav-link" href="/logout" title="Logout">
+                <i class="bi bi-box-arrow-right"></i> <span class="nav-link-label">Logout</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const toggleBtn = document.getElementById('sidebarToggleBtn');
+            const sidebar = document.getElementById('staffSidebar');
+            
+            if (toggleBtn && sidebar) {
+                toggleBtn.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    const isCollapsed = sidebar.classList.contains('collapsed');
+                    localStorage.setItem('staffSidebarCollapsed', isCollapsed ? 'true' : 'false');
+                });
+            }
+        });
+    </script>
