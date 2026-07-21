@@ -13,6 +13,7 @@
           <thead>
             <tr>
               <th>Pet</th>
+              <th>Vet</th>
               <th>Date</th>
               <th>Time</th>
               <th>Reason</th>
@@ -26,6 +27,7 @@
                   <strong><%= a.pet_name %></strong><br>
                   <small class="text-muted"><%= a.pet_species %></small>
                 </td>
+                <td><%= a.vet_name || '-' %></td>
                 <td><%= new Date(a.date).toLocaleDateString() %></td>
                 <td>
                   <% 

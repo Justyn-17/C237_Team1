@@ -33,6 +33,22 @@
               </div>
             </div>
 
+            <!-- Vet dropdown -->
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label text-secondary fw-semibold">Vet</label>
+                <select name="vet_id" class="form-select bg-light border-0" required>
+                  <option value="" disabled selected>Select a vet</option>
+                  <% vets.forEach(function(vet) { %>
+                    <option value="<%= vet.id %>"><%= vet.name %></option>
+                  <% }); %>
+                </select>
+                <% if (vets.length === 0) { %>
+                  <div class="form-text text-danger">No vets are available right now. Please try again later.</div>
+                <% } %>
+              </div>
+            </div>
+
             <!-- Time slots: single specific time -->
             <div class="mb-3">
               <label class="form-label text-secondary fw-semibold">Time Slot</label>

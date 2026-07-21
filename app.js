@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql');
 const session = require('express-session');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -73,20 +74,13 @@ app.use((req, res, next) => {
     next();
 });
 
-// Simple role guards to avoid random re-logins
-function requireCustomer(req, res, next) {
-    if (req.session.role !== 'customer') {
+// Role-based access control middleware
+const requireRole = (role) => (req, res, next) => {
+    if (req.session.role !== role) {
         return res.redirect('/login');
     }
     next();
-}
-
-function requireStaff(req, res, next) {
-    if (req.session.role !== 'staff') {
-        return res.redirect('/login');
-    }
-    next();
-}
+};
 
 // DB connection (Azure MySQL)
 const db = mysql.createConnection({
@@ -103,6 +97,27 @@ db.connect((err) => {
         return;
     }
     console.log('Connected to Azure MySQL database.');
+});
+
+// Global Session Invalidation Middleware
+app.use((req, res, next) => {
+    if (req.session && req.session.username) {
+        db.query("SELECT status FROM users WHERE username = ?", [req.session.username], (err, results) => {
+            if (err) {
+                console.error("DB Error checking status:", err);
+                return next();
+            }
+            if (results.length > 0 && results[0].status !== 'active') {
+                req.session.destroy(() => {
+                    res.redirect('/login');
+                });
+            } else {
+                next();
+            }
+        });
+    } else {
+        next();
+    }
 });
 
 // ==========================================
@@ -127,32 +142,104 @@ app.get('/register', (req, res) => {
 
 // Register Logic (dummy)
 app.post('/register', async (req, res) => {
-    console.log("Dummy registration submitted");
-    res.redirect('/login');
+    const { name, phone, username, password, confirm_password, securityQuestion, securityAnswer } = req.body;
+
+    if (password !== confirm_password) {
+        return res.status(400).send("Passwords do not match. <a href='/register'>Try again</a>");
+    }
+
+    try {
+        const password_hash = await bcrypt.hash(password, 10);
+        const security_answer_hash = securityAnswer ? await bcrypt.hash(securityAnswer, 10) : null;
+        const sql = "INSERT INTO users (name, phone, username, password_hash, role, security_question, security_answer_hash) VALUES (?, ?, ?, ?, 'customer', ?, ?)";
+
+        db.query(sql, [name, phone, username, password_hash, securityQuestion, security_answer_hash], (err, result) => {
+            if (err) {
+                if (err.code === 'ER_DUP_ENTRY') {
+                    if (err.sqlMessage && err.sqlMessage.includes('username')) {
+                        return res.render('register', { errorMessage: "This username is already taken. Please choose another." });
+                    } else if (err.sqlMessage && err.sqlMessage.includes('phone')) {
+                        return res.render('register', { errorMessage: "This phone number is already registered." });
+                    }
+                }
+                console.error("Database error during registration:", err);
+                return res.status(500).send("An internal server error occurred during registration. Please try again later.");
+            }
+            res.redirect('/login');
+        });
+    } catch (error) {
+        console.error("Error during password hashing:", error);
+        res.status(500).send("An internal server error occurred.");
+    }
 });
 
 // Login Page
 app.get('/login', (req, res) => {
-    res.render('login');
+    res.render('login', { error: null });
 });
 
 // Login Logic (dummy)
 app.post('/login', async (req, res) => {
-    const username = req.body.username || '';
-    const password = req.body.password || '';
-    const role = req.body.role || '';
+    const { username, password, expectedRole } = req.body;
 
-    req.session.regenerate((err) => {
-        if (err) return res.status(500).send("Session error");
+    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
+        if (err) {
+            console.error("Database error during login:", err);
+            return res.status(500).send("An internal server error occurred.");
+        }
 
-        if (role === 'staff' && username === 'staff' && password === 'test') {
-            req.session.role = 'staff';
-            res.redirect('/staff-dashboard');
-        } else if (role === 'customer' && username === 'customer' && password === 'test') {
-            req.session.role = 'customer';
-            res.redirect('/customer-dashboard');
-        } else {
-            res.redirect('/login');
+        if (results.length === 0) {
+            return res.render('login', { error: 'Invalid username or password.' });
+        }
+
+        const user = results[0];
+
+        // Boundary Check: Ensure the user's role matches the portal they are trying to log in from
+        if (expectedRole === 'staff' && (user.role !== 'staff' && user.role !== 'admin')) {
+            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+        }
+        if (expectedRole === 'customer' && user.role !== 'customer') {
+            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+        }
+
+        try {
+            // Trim whitespace in case the user accidentally copied trailing spaces
+            const cleanPassword = password.trim();
+            const match = await bcrypt.compare(cleanPassword, user.password_hash);
+
+            if (match) {
+                // Return to ensure no further execution in this block
+                return req.session.regenerate((err) => {
+                    if (err) return res.status(500).send("Session error");
+
+                    req.session.role = user.role;
+                    req.session.username = user.username;
+                    req.session.userId = user.id; // Helpful to store ID for DB queries
+
+                    // Explicitly save the session before redirecting to prevent race conditions
+                    req.session.save((saveErr) => {
+                        if (saveErr) return res.status(500).send("Session error");
+
+                        // Check boolean or MySQL tinyint (1)
+                        if (user.requires_password_reset === true || user.requires_password_reset === 1) {
+                            return res.redirect('/setup-password');
+                        }
+
+                        if (user.role === 'staff' || user.role === 'admin') {
+                            return res.redirect('/staff-dashboard');
+                        } else if (user.role === 'customer') {
+                            return res.redirect('/customer-dashboard');
+                        } else {
+                            return res.redirect('/login');
+                        }
+                    });
+                });
+            } else {
+                return res.render('login', { error: 'Invalid username or password.' });
+            }
+        } catch (error) {
+            console.error("Error during password comparison:", error);
+            return res.status(500).send("An internal server error occurred.");
         }
     });
 });
@@ -166,10 +253,10 @@ app.get('/logout', (req, res) => {
 });
 
 // Customer Dashboard
-app.get('/customer-dashboard', requireCustomer, (req, res) => {
-    const sql = "SELECT * FROM pets";
+app.get('/customer-dashboard', requireRole('customer'), (req, res) => {
+    const sql = "SELECT * FROM pets WHERE owner_id = ?";
 
-    db.query(sql, (err, results) => {
+    db.query(sql, [req.session.userId], (err, results) => {
         if (err) {
             console.error("Error fetching pets:", err);
             return res.status(500).send("Database error");
@@ -185,19 +272,402 @@ app.get('/customer-dashboard', requireCustomer, (req, res) => {
     });
 });
 
+// Customer Profile
+app.get('/profile', requireRole('customer'), (req, res) => {
+    db.query("SELECT * FROM users WHERE id = ?", [req.session.userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching user profile:", err);
+            return res.status(500).send("Database error");
+        }
+        if (results.length === 0) {
+            return res.status(404).send("User not found");
+        }
+        res.render('profile', { user: results[0] });
+    });
+});
+
+app.post('/profile/update', requireRole('customer'), (req, res) => {
+    const { name, phone } = req.body;
+    if (!name || !phone) {
+        return res.status(400).send("Name and phone are required");
+    }
+    db.query("UPDATE users SET name = ?, phone = ? WHERE id = ?", [name, phone, req.session.userId], (err) => {
+        if (err) {
+            console.error("Error updating profile:", err);
+            return res.status(500).send("Database error");
+        }
+        req.session.name = name;
+        req.session.phone = phone;
+        res.redirect('/profile');
+    });
+});
+
 // Staff Dashboard
-app.get('/staff-dashboard', requireStaff, (req, res) => {
+app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
     res.render('staff');
 });
 
-// Staff: View user directory (placeholder)
-app.get('/staff/users', requireStaff, (req, res) => {
-    res.send("User directory coming soon.");
+// Staff: View user directory
+app.get('/user-directory', requireRole('staff'), (req, res) => {
+    db.query("SELECT * FROM users", (err, results) => {
+        if (err) {
+            console.error("Error fetching users:", err);
+            return res.status(500).send("Database error");
+        }
+        res.render('user-directory', {
+            users: results,
+            currentUser: { username: req.session.username, role: req.session.role },
+            accessCode: null,
+            newUsername: null
+        });
+    });
 });
 
-// Staff: System settings (placeholder)
-app.get('/staff/settings', requireStaff, (req, res) => {
-    res.send("System settings coming soon.");
+// Staff: View all pets (across every owner)
+app.get('/staff/pets', requireRole('staff'), (req, res) => {
+    // Search by pet or owner name, and optionally filter by species
+    const search = (req.query.q || '').trim();
+    const SPECIES = ['Dog', 'Cat', 'Bird', 'Rabbit'];
+    const species = SPECIES.includes(req.query.species) ? req.query.species : '';
+
+    const where = [];
+    const params = [];
+
+    if (search) {
+        where.push('(p.name LIKE ? OR u.name LIKE ?)');
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    if (species) {
+        where.push('p.species = ?');
+        params.push(species);
+    }
+
+    const sql = `
+        SELECT p.*, u.name AS owner_name
+        FROM pets p
+        LEFT JOIN users u ON p.owner_id = u.id
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+        ORDER BY p.name
+    `;
+
+    db.query(sql, params, (err, results) => {
+        if (err) {
+            console.error("Error fetching pets:", err);
+            return res.status(500).send("Database error");
+        }
+
+        results.forEach(p => {
+            if (p.photo && (p.photo.includes('\\') || /^[A-Za-z]:/.test(p.photo))) {
+                p.photo = `/uploads/pets/${path.basename(p.photo)}`;
+            }
+        });
+
+        res.render('staff-pets', {
+            pets: results,
+            search,
+            species,
+            speciesOptions: SPECIES
+        });
+    });
+});
+
+// Staff: View a specific pet + its care records (read-only)
+app.get('/staff/pets/view/:id', requireRole('staff'), (req, res) => {
+    const petId = req.params.id;
+    const CARE_RECORD_TYPES = ['Feeding', 'Vaccination', 'Medication'];
+    const typeFilter = CARE_RECORD_TYPES.includes(req.query.type) ? req.query.type : null;
+
+    const petSql = `
+        SELECT p.*, u.name AS owner_name
+        FROM pets p
+        LEFT JOIN users u ON p.owner_id = u.id
+        WHERE p.id = ?
+    `;
+
+    db.query(petSql, [petId], (err, pets) => {
+        if (err) {
+            console.error("Error fetching pet:", err);
+            return res.status(500).send("Database error");
+        }
+        if (pets.length === 0) {
+            return res.status(404).send("Pet not found. <a href='/staff/pets'>Go back</a>");
+        }
+
+        const recordsSql = typeFilter
+            ? "SELECT * FROM care_records WHERE pet_id = ? AND record_type = ? ORDER BY record_date DESC"
+            : "SELECT * FROM care_records WHERE pet_id = ? ORDER BY record_date DESC";
+        const recordParams = typeFilter ? [petId, typeFilter] : [petId];
+
+        db.query(recordsSql, recordParams, (err, records) => {
+            if (err) {
+                console.error("Error fetching care records:", err);
+                return res.status(500).send("Database error");
+            }
+            if (pets[0].photo && (pets[0].photo.includes('\\') || /^[A-Za-z]:/.test(pets[0].photo))) {
+                pets[0].photo = `/uploads/pets/${path.basename(pets[0].photo)}`;
+            }
+            res.render('staff-viewpet', { pet: pets[0], records, typeFilter });
+        });
+    });
+});
+
+// Staff: Create user
+app.post('/staff/create-user', requireRole('staff'), async (req, res) => {
+    const { name, username, phone } = req.body;
+    if (!name || !username || !phone) {
+        return res.status(400).send("Name, username, and phone are required");
+    }
+
+    try {
+        const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(accessCode, salt);
+
+        const sql = "INSERT INTO users (name, username, phone, password_hash, role, requires_password_reset) VALUES (?, ?, ?, ?, 'staff', true)";
+        db.query(sql, [name, username, phone, hashedPassword], (err, result) => {
+            if (err) {
+                console.error("Database error during staff creation:", err);
+                return res.status(500).send("Database error");
+            }
+            db.query("SELECT * FROM users", (err, results) => {
+                if (err) return res.status(500).send("Database error");
+                res.render('user-directory', { users: results, accessCode: accessCode, newUsername: username });
+            });
+        });
+    } catch (error) {
+        console.error("Error hashing password:", error);
+        res.status(500).send("Internal server error");
+    }
+});
+
+// Setup Password Routes
+app.get('/setup-password', (req, res) => {
+    if (!req.session.username) {
+        return res.redirect('/login');
+    }
+    if (req.session.resetAuthorized) {
+        return res.render('setup-password', { error: null });
+    }
+    db.query("SELECT requires_password_reset FROM users WHERE username = ?", [req.session.username], (err, results) => {
+        if (err || results.length === 0 || !results[0].requires_password_reset) {
+            return res.redirect('/');
+        }
+        res.render('setup-password', { error: null });
+    });
+});
+
+app.post('/setup-password', async (req, res) => {
+    if (!req.session.username) return res.redirect('/login');
+
+    const { new_password, confirm_password, securityQuestion, securityAnswer } = req.body;
+    if (new_password !== confirm_password) {
+        return res.render('setup-password', { error: "Passwords do not match." });
+    }
+    if (new_password.length < 8) {
+        return res.render('setup-password', { error: "Password must be at least 8 characters long." });
+    }
+
+    try {
+        const password_hash = await bcrypt.hash(new_password, 10);
+        const security_answer_hash = securityAnswer ? await bcrypt.hash(securityAnswer, 10) : null;
+
+        let sql = "UPDATE users SET password_hash = ?, requires_password_reset = false WHERE username = ?";
+        let params = [password_hash, req.session.username];
+
+        if (securityQuestion && securityAnswer) {
+            sql = "UPDATE users SET password_hash = ?, requires_password_reset = false, security_question = ?, security_answer_hash = ? WHERE username = ?";
+            params = [password_hash, securityQuestion, security_answer_hash, req.session.username];
+        }
+
+        db.query(sql, params, (err, result) => {
+            if (err) {
+                console.error("Database error during password setup:", err);
+                return res.status(500).send("Database error");
+            }
+            req.session.resetAuthorized = false; // clear reset authorization
+            if (req.session.role === 'staff' || req.session.role === 'admin') {
+                res.redirect('/staff-dashboard');
+            } else {
+                res.redirect('/customer-dashboard');
+            }
+        });
+    } catch (error) {
+        console.error("Error hashing password:", error);
+        res.status(500).send("Internal server error");
+    }
+});
+
+// Forgot Password Flow
+app.get('/forgot-password', (req, res) => {
+    res.render('forgot-password', { error: null });
+});
+
+app.post('/forgot-password', (req, res) => {
+    const { username } = req.body;
+    if (username === 'admin') {
+        return res.render('forgot-password', { error: 'Action not allowed for this user.' });
+    }
+    db.query("SELECT * FROM users WHERE username = ?", [username], (err, results) => {
+        if (err || results.length === 0) {
+            return res.render('forgot-password', { error: 'User not found.' });
+        }
+        res.render('forgot-password-verify', { user: results[0], error: null });
+    });
+});
+
+app.post('/forgot-password/verify', async (req, res) => {
+    const { username, securityAnswer } = req.body;
+    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
+        if (err || results.length === 0) return res.render('forgot-password-verify', { user: { username }, error: 'User not found.' });
+
+        const user = results[0];
+
+        // Prevent admin reset
+        if (user.username === 'admin') {
+            return res.render('forgot-password-verify', { user, error: 'Action not allowed for this user.' });
+        }
+
+        try {
+            const match = await bcrypt.compare(securityAnswer, user.security_answer_hash || '');
+            if (match) {
+                req.session.resetAuthorized = true;
+                req.session.resetUserId = user.id;
+                req.session.username = user.username;
+                req.session.role = user.role;
+                res.redirect('/setup-password');
+            } else {
+                res.render('forgot-password-verify', { user, error: 'Incorrect security answer.' });
+            }
+        } catch (error) {
+            console.error("Error verifying answer:", error);
+            res.render('forgot-password-verify', { user, error: 'An error occurred. Please try again.' });
+        }
+    });
+});
+
+// Admin-Assisted Reset Flow
+app.post('/staff/reset-user/:id', async (req, res) => {
+    if (req.session.role !== 'staff' && req.session.role !== 'admin') {
+        return res.status(403).send("Forbidden");
+    }
+    const targetUserId = req.params.id;
+
+    db.query("SELECT * FROM users WHERE id = ?", [targetUserId], async (err, results) => {
+        if (err || results.length === 0) return res.status(404).send("User not found");
+
+        const targetUser = results[0];
+        if (targetUser.username === 'admin') {
+            return res.status(403).send("Cannot reset the system admin account");
+        }
+
+        const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
+        try {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(accessCode, salt);
+
+            db.query("UPDATE users SET password_hash = ?, temp_access_code = ?, requires_password_reset = true WHERE id = ?", [hashedPassword, accessCode, targetUserId], (err) => {
+                if (err) return res.status(500).send("Database error");
+
+                db.query("SELECT * FROM users", (err, users) => {
+                    if (err) return res.status(500).send("Database error");
+                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username });
+                });
+            });
+        } catch (error) {
+            console.error("Error hashing access code:", error);
+            res.status(500).send("Internal server error");
+        }
+    });
+});
+
+
+// Staff: System settings
+app.get('/staff/settings', requireRole('staff'), (req, res) => {
+    res.render('settings-coming-soon');
+});
+
+// ==========================================
+// SOFT DELETE WORKFLOW
+// ==========================================
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
+    db.query("UPDATE users SET status = 'deletion_requested' WHERE username = ?", [req.session.username], (err) => {
+        if (err) {
+            console.error("Error requesting deletion:", err);
+            return res.status(500).send("Database error");
+        }
+        req.session.destroy(() => {
+            res.redirect('/login');
+        });
+    });
+});
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
+    const targetId = req.params.id;
+    db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err) => {
+        if (err) {
+            console.error("Error approving deletion:", err);
+            return res.status(500).send("Database error");
+        }
+        res.redirect('/user-directory');
+    });
+});
+
+// TODO(security): Implement CSRF protection for state-changing routes
+app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
+    if (req.session.username !== 'admin') {
+        return res.status(403).send("Forbidden: Only the system admin can delete staff accounts.");
+    }
+
+    const targetId = req.params.id;
+
+    // Prevent self-deletion if ID matches session (though we rely on username for the admin check)
+    // To be perfectly safe, we verify we aren't targeting the admin.
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (err, results) => {
+        if (err || results.length === 0) return res.status(500).send("User not found.");
+
+        if (results[0].username === 'admin') {
+            return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
+        }
+
+        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
+            if (err2) {
+                console.error("Error deleting staff:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.redirect('/user-directory');
+        });
+    });
+});
+
+app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
+    if (req.session.username !== 'admin') {
+        return res.status(403).send("Forbidden: Only the system admin can delete customer accounts.");
+    }
+
+    const targetId = req.params.id;
+
+    db.query("SELECT username, role FROM users WHERE id = ?", [targetId], (err, results) => {
+        if (err || results.length === 0) return res.status(500).send("User not found.");
+
+        if (results[0].username === 'admin') {
+            return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
+        }
+
+        if (results[0].role !== 'customer') {
+            return res.status(400).send("Bad Request: User is not a customer.");
+        }
+
+        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err2) => {
+            if (err2) {
+                console.error("Error deleting customer:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.redirect('/user-directory');
+        });
+    });
 });
 
 // ==========================================
@@ -262,11 +732,11 @@ app.get('/vet-dashboard', requireStaff, (req, res) => {
 // PET CRUD ROUTES
 // ==========================================
 
-app.get('/addpet', requireCustomer, (req, res) => {
+app.get('/addpet', requireRole('customer'), (req, res) => {
     res.render('addpet');
 });
 
-app.post('/addpet', requireCustomer, upload.single('photo'), (req, res) => {
+app.post('/addpet', requireRole('customer'), upload.single('photo'), (req, res) => {
     const petName = req.body.name;
     const petSpecies = req.body.species;
     let petBreed = req.body.breed;
@@ -276,7 +746,7 @@ app.post('/addpet', requireCustomer, upload.single('photo'), (req, res) => {
 
     const petGender = req.body.gender;
     const petAge = parseFloat(req.body.age);
-    const ownerId = 1;
+    const ownerId = req.session.userId;
     const petPhoto = req.file ? `/uploads/pets/${req.file.filename}` : null;
 
     if (!petName || !petSpecies || !petBreed || !petGender || !req.body.age) {
@@ -297,12 +767,12 @@ app.post('/addpet', requireCustomer, upload.single('photo'), (req, res) => {
 });
 
 // View a pet + its care records
-app.get('/pets/view/:id', requireCustomer, (req, res) => {
+app.get('/pets/view/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     const CARE_RECORD_TYPES = ['Feeding', 'Vaccination', 'Medication'];
     const typeFilter = CARE_RECORD_TYPES.includes(req.query.type) ? req.query.type : null;
 
-    db.query("SELECT * FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT * FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
@@ -330,7 +800,7 @@ app.get('/pets/view/:id', requireCustomer, (req, res) => {
 });
 
 // Add a care record
-app.post('/pets/:id/care-records', requireCustomer, (req, res) => {
+app.post('/pets/:id/care-records', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
     const recordType = req.body.record_type;
     const description = req.body.description;
@@ -340,20 +810,28 @@ app.post('/pets/:id/care-records', requireCustomer, (req, res) => {
         return res.status(400).send("Record type and date are required! <a href='/pets/view/" + petId + "'>Go back</a>");
     }
 
-    const sql = "INSERT INTO care_records (pet_id, record_type, description, record_date) VALUES (?, ?, ?, ?)";
-    db.query(sql, [petId, recordType, description, recordDate], (err) => {
+    // Only insert if this pet belongs to the logged-in customer
+    const sql = `
+        INSERT INTO care_records (pet_id, record_type, description, record_date)
+        SELECT ?, ?, ?, ?
+        FROM pets WHERE id = ? AND owner_id = ?
+    `;
+    db.query(sql, [petId, recordType, description, recordDate, petId, req.session.userId], (err, result) => {
         if (err) {
             console.error("Error adding care record:", err);
             return res.status(500).send("Database error");
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
         }
         res.redirect(`/pets/view/${petId}`);
     });
 });
 
 // Edit pet GET
-app.get('/pets/edit/:id', requireCustomer, (req, res) => {
+app.get('/pets/edit/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
-    db.query("SELECT * FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT * FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
@@ -369,7 +847,7 @@ app.get('/pets/edit/:id', requireCustomer, (req, res) => {
 });
 
 // Edit pet POST
-app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) => {
+app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req, res) => {
     const petId = req.params.id;
     const petName = req.body.name;
     const petSpecies = req.body.species;
@@ -388,16 +866,19 @@ app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) =
         return res.status(400).send("Invalid age! Age must be between 0 and 50 years. <a href='/pets/edit/" + petId + "'>Go back</a>");
     }
 
-    db.query("SELECT photo FROM pets WHERE id = ?", [petId], (err, pets) => {
+    db.query("SELECT photo FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pet:", err);
             return res.status(500).send("Database error");
         }
+        if (pets.length === 0) {
+            return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
+        }
 
         const photoPath = req.file ? `/uploads/pets/${req.file.filename}` : pets[0].photo;
-        const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ?";
+        const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ? AND owner_id = ?";
 
-        db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId], (err2) => {
+        db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId, req.session.userId], (err2) => {
             if (err2) {
                 console.error("Error updating pet:", err2);
                 return res.status(500).send("Database error");
@@ -408,11 +889,11 @@ app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) =
 });
 
 // Delete pet POST
-app.post('/pets/delete/:id', requireCustomer, (req, res) => {
+app.post('/pets/delete/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
-    const sql = "DELETE FROM pets WHERE id = ?";
+    const sql = "DELETE FROM pets WHERE id = ? AND owner_id = ?";
 
-    db.query(sql, [petId], (err) => {
+    db.query(sql, [petId, req.session.userId], (err) => {
         if (err) {
             console.error("Error deleting pet:", err);
             return res.status(500).send("Database error");
@@ -420,84 +901,403 @@ app.post('/pets/delete/:id', requireCustomer, (req, res) => {
         res.redirect('/customer-dashboard');
     });
 });
+// ==========================================
+// CARE REMINDERS ROUTES
+// ==========================================
 
+// Customer - View all reminders
+app.get('/reminders', requireRole('customer'), (req, res) => {
+
+    const sql = `
+        SELECT reminders.*, pets.name AS pet_name
+        FROM reminders
+        INNER JOIN pets
+        ON reminders.pet_id = pets.id
+        WHERE pets.owner_id = ?
+        ORDER BY due_date ASC
+    `;
+
+    db.query(sql, [req.session.userId], (err, reminders) => {
+
+        if (err) {
+            console.error("Error fetching reminders:", err);
+            return res.status(500).send("Database error");
+        }
+
+        const today = new Date();
+
+        reminders.forEach(reminder => {
+
+            const dueDate = new Date(reminder.due_date);
+
+            today.setHours(0, 0, 0, 0);
+            dueDate.setHours(0, 0, 0, 0);
+
+            const diffDays = Math.ceil(
+                (dueDate - today) / (1000 * 60 * 60 * 24)
+            );
+
+            if (reminder.status === "Completed") {
+                reminder.displayStatus = "Completed";
+            }
+            else if (diffDays < 0) {
+                reminder.displayStatus = "Overdue";
+            }
+            else if (diffDays === 0) {
+                reminder.displayStatus = "Due Today";
+            }
+            else {
+                reminder.displayStatus = "Upcoming";
+            }
+
+        });
+
+        res.render("reminders", {
+            reminders
+        });
+
+    });
+
+});
+
+
+// Display Add Reminder Page
+app.get('/reminders/add', requireRole('customer'), (req, res) => {
+
+    db.query("SELECT id, name FROM pets WHERE owner_id = ?", [req.session.userId], (err, pets) => {
+
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Database error");
+        }
+
+        res.render("addReminder", {
+            pets
+        });
+
+    });
+
+});
+
+
+// Add Reminder
+app.post('/reminders/add', requireRole('customer'), (req, res) => {
+
+    const {
+        pet_id,
+        reminder_title,
+        due_date,
+        status
+    } = req.body;
+
+    // Only insert if the chosen pet belongs to the logged-in customer
+    const sql = `
+        INSERT INTO reminders
+        (pet_id, reminder_title, due_date, status)
+        SELECT ?, ?, ?, ?
+        FROM pets WHERE id = ? AND owner_id = ?
+    `;
+
+    db.query(
+        sql,
+        [
+            pet_id,
+            reminder_title,
+            due_date,
+            status,
+            pet_id,
+            req.session.userId
+        ],
+        (err, result) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(400).send("Invalid pet selected. <a href='/reminders/add'>Go back</a>");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Edit Reminder Page
+app.get('/reminders/edit/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    db.query(
+        `SELECT reminders.*
+         FROM reminders
+         INNER JOIN pets ON reminders.pet_id = pets.id
+         WHERE reminders.id = ? AND pets.owner_id = ?`,
+        [reminderId, req.session.userId],
+        (err, reminder) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            if (reminder.length === 0) {
+                return res.status(404).send("Reminder not found. <a href='/reminders'>Go back</a>");
+            }
+
+            db.query(
+                "SELECT id,name FROM pets WHERE owner_id = ?",
+                [req.session.userId],
+                (err, pets) => {
+
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).send("Database error");
+                    }
+
+                    res.render("editReminder", {
+                        reminder: reminder[0],
+                        pets
+                    });
+
+                }
+            );
+
+        }
+    );
+
+});
+
+
+// Update Reminder
+app.post('/reminders/edit/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    const {
+        pet_id,
+        reminder_title,
+        due_date,
+        status
+    } = req.body;
+
+    // Guard: reminder must currently belong to one of this customer's pets,
+    // and the new pet_id must also belong to this customer.
+    const sql = `
+        UPDATE reminders
+        SET
+            pet_id=?,
+            reminder_title=?,
+            due_date=?,
+            status=?
+        WHERE id=?
+          AND pet_id IN (SELECT id FROM pets WHERE owner_id = ?)
+          AND ? IN (SELECT id FROM pets WHERE owner_id = ?)
+    `;
+
+    db.query(
+        sql,
+        [
+            pet_id,
+            reminder_title,
+            due_date,
+            status,
+            reminderId,
+            req.session.userId,
+            pet_id,
+            req.session.userId
+        ],
+        (err, result) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).send("Reminder not found. <a href='/reminders'>Go back</a>");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Delete Reminder
+app.post('/reminders/delete/:id', requireRole('customer'), (req, res) => {
+
+    const reminderId = req.params.id;
+
+    db.query(
+        `DELETE FROM reminders
+         WHERE id=?
+           AND pet_id IN (SELECT id FROM pets WHERE owner_id = ?)`,
+        [reminderId, req.session.userId],
+        (err) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send("Database error");
+            }
+
+            res.redirect("/reminders");
+
+        }
+    );
+
+});
+
+
+// Staff - View All Reminders
+app.get('/staff/reminders', requireRole('staff'), (req, res) => {
+
+    const sql = `
+        SELECT reminders.*,
+               pets.name AS pet_name
+        FROM reminders
+        INNER JOIN pets
+        ON reminders.pet_id = pets.id
+        ORDER BY due_date ASC
+    `;
+
+    db.query(sql, (err, reminders) => {
+
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Database error");
+        }
+
+        res.render("reminders", {
+            reminders
+        });
+
+    });
+
+});
 // ==========================================
 // APPOINTMENTS ROUTES
 // ==========================================
 
 // New appointment form – fetch pets for dropdown
-app.get('/appointments/new', requireCustomer, (req, res) => {
-    const sql = "SELECT id, name, species, breed FROM pets";
+app.get('/appointments/new', requireRole('customer'), (req, res) => {
+    const petsSql = "SELECT id, name, species, breed FROM pets WHERE owner_id = ?";
 
-    db.query(sql, (err, pets) => {
+    db.query(petsSql, [req.session.userId], (err, pets) => {
         if (err) {
             console.error("Error fetching pets for appointments:", err);
             return res.status(500).send("Database error");
         }
-        res.render('appointments_new', { pets });
+
+        // Available vets = active staff users the customer can book with.
+        // The system 'admin' account has role 'staff' too, so exclude it by username.
+        const vetsSql = `
+            SELECT id, name
+            FROM users
+            WHERE role = 'staff' AND status = 'active' AND username <> 'admin'
+            ORDER BY name
+        `;
+        db.query(vetsSql, (err2, vets) => {
+            if (err2) {
+                console.error("Error fetching vets for appointments:", err2);
+                return res.status(500).send("Database error");
+            }
+            res.render('appointments_new', { pets, vets });
+        });
     });
 });
 
 // Create appointment with conflict checking (single time slot)
-app.post('/appointments', requireCustomer, (req, res) => {
-    const { pet_id, date, slot_time, reason } = req.body;
+app.post('/appointments', requireRole('customer'), (req, res) => {
+    const { pet_id, vet_id, date, slot_time, reason } = req.body;
 
-    const owner_id = 1; // demo customer
-    const vet_id = 2;   // demo vet
+    const owner_id = req.session.userId; // logged-in customer
 
-    if (!pet_id || !date || !slot_time) {
-        return res.status(400).send("Pet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
+    if (!pet_id || !vet_id || !date || !slot_time) {
+        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
     const start_time = slot_time;
     const end_time = slot_time;
 
-    const conflictSql = `
-        SELECT id
-        FROM appointments
-        WHERE vet_id = ?
-          AND date = ?
-          AND NOT (end_time <= ? OR start_time >= ?)
-    `;
+    // Validate the selected vet is a real active staff user (not the system admin)
+    db.query(
+        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
+        [vet_id],
+        (errVet, vets) => {
+            if (errVet) {
+                console.error('Vet validation error:', errVet);
+                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
+            }
+            if (vets.length === 0) {
+                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
+            }
 
-    db.query(conflictSql, [vet_id, date, start_time, end_time], (err, rows) => {
-        if (err) {
-            console.error('Conflict check error:', err);
-            return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
-        }
+            // Slots are discrete one-hour times: a slot clashes only with a
+            // non-cancelled booking for the SAME vet, date and start time.
+            const conflictSql = `
+                SELECT id
+                FROM appointments
+                WHERE vet_id = ?
+                  AND date = ?
+                  AND start_time = ?
+                  AND status <> 'cancelled'
+            `;
 
-        if (rows.length > 0) {
-            return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
-        }
-
-        const insertSql = `
-            INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'booked')
-        `;
-        db.query(
-            insertSql,
-            [pet_id, owner_id, vet_id, date, start_time, end_time, reason],
-            (err2) => {
-                if (err2) {
-                    console.error('Insert appointment error:', err2);
-                    return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
+                if (err) {
+                    console.error('Conflict check error:', err);
+                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
                 }
 
-                res.redirect('/appointments/my');
-            }
-        );
-    });
+                if (rows.length > 0) {
+                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
+                }
+
+                // Only book if the chosen pet belongs to the logged-in customer
+                const insertSql = `
+                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
+                    FROM pets WHERE id = ? AND owner_id = ?
+                `;
+                db.query(
+                    insertSql,
+                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
+                    (err2, result) => {
+                        if (err2) {
+                            console.error('Insert appointment error:', err2);
+                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+                        }
+
+                        if (result.affectedRows === 0) {
+                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
+                        }
+
+                        res.redirect('/appointments/my');
+                    }
+                );
+            });
+        }
+    );
 });
 
 // Customer-specific list: appointments I've booked
-app.get('/appointments/my', requireCustomer, (req, res) => {
-    const owner_id = 1;
+app.get('/appointments/my', requireRole('customer'), (req, res) => {
+    const owner_id = req.session.userId;
 
     const sql = `
         SELECT a.id, a.date, a.start_time, a.end_time, a.status, a.reason,
-               p.name AS pet_name, p.species AS pet_species
+               p.name AS pet_name, p.species AS pet_species,
+               v.name AS vet_name
         FROM appointments a
         JOIN pets p ON a.pet_id = p.id
+        LEFT JOIN users v ON a.vet_id = v.id
         WHERE a.owner_id = ?
         ORDER BY a.date, a.start_time
     `;
@@ -518,24 +1318,51 @@ app.get('/appointments', (req, res) => {
         return res.redirect('/login');
     }
 
+    // Optional status filter (used by the staff view: Booked / Completed / Cancelled)
+    const STATUSES = ['booked', 'completed', 'cancelled'];
+    const statusFilter = STATUSES.includes(req.query.status) ? req.query.status : '';
+
+    // The system admin oversees every appointment across all vets;
+    // a regular staff member (vet) only sees the ones assigned to them.
+    const isAdmin = req.session.username === 'admin';
+
     let sql;
     let params;
 
     if (req.session.role === 'customer') {
         sql = `
-            SELECT *
-            FROM appointments
-            ORDER BY date, start_time
+            SELECT a.*, p.name AS pet_name, v.name AS vet_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users v ON a.vet_id = v.id
+            WHERE a.owner_id = ?
+              ${statusFilter ? 'AND a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
         `;
-        params = [];
+        params = statusFilter ? [req.session.userId, statusFilter] : [req.session.userId];
+    } else if (isAdmin) {
+        // All appointments, with both the owner and the assigned vet.
+        sql = `
+            SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users o ON a.owner_id = o.id
+            LEFT JOIN users v ON a.vet_id = v.id
+            ${statusFilter ? 'WHERE a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
+        `;
+        params = statusFilter ? [statusFilter] : [];
     } else if (req.session.role === 'staff') {
         sql = `
-            SELECT *
-            FROM appointments
-            WHERE vet_id = ?
-            ORDER BY date, start_time
+            SELECT a.*, p.name AS pet_name, o.name AS owner_name
+            FROM appointments a
+            LEFT JOIN pets p ON a.pet_id = p.id
+            LEFT JOIN users o ON a.owner_id = o.id
+            WHERE a.vet_id = ?
+              ${statusFilter ? 'AND a.status = ?' : ''}
+            ORDER BY a.date, a.start_time
         `;
-        params = [2];
+        params = statusFilter ? [req.session.userId, statusFilter] : [req.session.userId];
     } else {
         return res.status(403).send("Forbidden.");
     }
@@ -546,39 +1373,47 @@ app.get('/appointments', (req, res) => {
             return res.status(500).send("Could not load appointments.");
         }
 
-        res.render('appointments_index', { appointments: rows });
+        res.render('appointments_index', { appointments: rows, statusFilter, isAdmin });
     });
 });
 
 // Customer cancels one of their own appointments
-app.post('/appointments/:id/cancel', requireCustomer, (req, res) => {
+app.post('/appointments/:id/cancel', (req, res) => {
     const appointmentId = req.params.id;
-    const owner_id = 1; // TODO: use real logged-in user id
+    const role = req.session.role;
 
-    const sql = `
-        UPDATE appointments
-        SET status = 'cancelled'
-        WHERE id = ? AND owner_id = ?
-    `;
+    // A customer may cancel their own booking; a vet may cancel one assigned to them.
+    let sql, params, redirectTo;
+    if (role === 'customer') {
+        sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND owner_id = ?";
+        params = [appointmentId, req.session.userId];
+        redirectTo = '/appointments/my';
+    } else if (role === 'staff' || role === 'admin') {
+        sql = "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND vet_id = ?";
+        params = [appointmentId, req.session.userId];
+        redirectTo = '/appointments';
+    } else {
+        return res.redirect('/login');
+    }
 
-    db.query(sql, [appointmentId, owner_id], (err, result) => {
+    db.query(sql, params, (err, result) => {
         if (err) {
             console.error('Cancel appointment error:', err);
             return res.status(500).send("Could not cancel appointment.");
         }
 
         if (result.affectedRows === 0) {
-            return res.status(404).send("Appointment not found or not owned by you.");
+            return res.status(404).send("Appointment not found or not yours to cancel.");
         }
 
-        res.redirect('/appointments/my');
+        res.redirect(redirectTo);
     });
 });
 
 // Staff marks appointment as completed
-app.post('/appointments/:id/complete', requireStaff, (req, res) => {
+app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
     const appointmentId = req.params.id;
-    const vet_id = 2; // demo vet id
+    const vet_id = req.session.userId; // the logged-in vet
 
     const sql = `
         UPDATE appointments

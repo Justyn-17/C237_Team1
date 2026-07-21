@@ -1,0 +1,302 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<main class="container py-5">
+    <div class="row mb-5">
+        <div class="col-12 text-center">
+            <h1 class="display-5 fw-bold" style="color: var(--primary-teal);">User Directory</h1>
+            <p class="text-muted fs-5">Manage staff accounts and view all system users.</p>
+        </div>
+    </div>
+
+    <% if (typeof accessCode !== 'undefined' && accessCode) { %>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm text-center mb-5" role="alert" style="border: 2px solid #0d9488; background-color: #f0fdfa;">
+            <h4 class="alert-heading fw-bold mb-3" style="color: #0f766e;">Staff Account Created Successfully!</h4>
+            <p class="mb-2 fs-5">A new staff account has been generated for <strong><%= newUsername %></strong>.</p>
+            <p class="mb-0">Please provide them with the following one-time access code:</p>
+            <div class="display-4 fw-bold my-3 p-3 bg-white rounded d-inline-block shadow" style="color: #0d9488; letter-spacing: 2px;">
+                <%= accessCode %>
+            </div>
+            <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i>They will be prompted to set a permanent password upon their first login.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <% } %>
+
+    <% if (typeof resetAccessCode !== 'undefined' && resetAccessCode) { %>
+        <div class="alert alert-warning alert-dismissible fade show shadow-sm text-center mb-5" role="alert" style="border: 2px solid #d97706; background-color: #fef3c7;">
+            <h4 class="alert-heading fw-bold mb-3" style="color: #b45309;">Access Code Regenerated!</h4>
+            <p class="mb-2 fs-5">A new access code has been generated for <strong><%= resetUsername %></strong>.</p>
+            <p class="mb-0">Please provide them with the following temporary access code:</p>
+            <div class="display-4 fw-bold my-3 p-3 bg-white rounded d-inline-block shadow" style="color: #d97706; letter-spacing: 2px;">
+                <%= resetAccessCode %>
+            </div>
+            <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i>They will be prompted to set a permanent password upon their next login.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <% } %>
+
+    <div class="row g-4">
+        <!-- Add Staff Form -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 rounded-4 h-100" style="transition: transform 0.2s;">
+                <div class="card-header bg-white border-0 pt-4 pb-2 px-4">
+                    <h4 class="fw-bold mb-0" style="color: #0d9488;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-person-plus-fill me-2 mb-1" viewBox="0 0 16 16">
+                            <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                            <path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5z"/>
+                        </svg>
+                        Add Staff Member
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <!-- TODO(security): Add CSRF token for production -->
+                    <form action="/staff/create-user" method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label text-secondary fw-semibold">Full Name</label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" id="name" name="name" required placeholder="e.g. John Doe">
+                        </div>
+                        <div class="mb-3">
+                            <label for="username" class="form-label text-secondary fw-semibold">Username</label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" id="username" name="username" required placeholder="e.g. jdoe">
+                        </div>
+                        <div class="mb-4">
+                            <label for="phone" class="form-label text-secondary fw-semibold">Phone Number</label>
+                            <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" id="phone" name="phone" required placeholder="e.g. 555-0123">
+                        </div>
+                        <button type="submit" class="btn btn-lg w-100 rounded-pill fw-bold shadow-sm text-white" style="background-color: #0d9488;">
+                            Generate Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Tabbed Interface -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4 h-100">
+                <div class="card-body p-4">
+                    
+                    <!-- Header & Search Input -->
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                        <h4 class="fw-bold mb-0" style="color: #334155;">Active Users</h4>
+                        <div class="input-group" style="max-width: 400px;">
+                            <span class="input-group-text bg-light border-0 text-muted">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                            </span>
+                            <input type="text" id="searchInput" class="form-control bg-light border-0 shadow-none py-2" placeholder="Search by name, username, or phone...">
+                        </div>
+                    </div>
+
+                    <!-- Bootstrap Nav Pills -->
+                    <ul class="nav nav-pills mb-4 gap-2" id="userTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active rounded-pill px-4 fw-semibold custom-pill" id="staff-tab" data-bs-toggle="pill" data-bs-target="#staff-pane" type="button" role="tab" aria-controls="staff-pane" aria-selected="true">Staff</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill px-4 fw-semibold custom-pill" id="customers-tab" data-bs-toggle="pill" data-bs-target="#customers-pane" type="button" role="tab" aria-controls="customers-pane" aria-selected="false">Customers</button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="userTabsContent">
+                        
+                        <!-- Staff Tab Pane -->
+                        <div class="tab-pane fade show active" id="staff-pane" role="tabpanel" aria-labelledby="staff-tab" tabindex="0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead style="background-color: #f8fafc;">
+                                        <tr>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start">Name</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Username</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Phone</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Role</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Status</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="staffTableBody">
+                                        <% const staffUsers = users.filter(u => u.role === 'staff' && u.status !== 'deleted'); %>
+                                        <% staffUsers.forEach(function(user) { %>
+                                            <tr class="searchable-row">
+                                                <td class="py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px; height: 40px; background-color: #ccfbf1; color: #0f766e;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-person-fill" viewBox="0 0 16 16"><path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3Zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+                                                        </div>
+                                                        <span class="fw-bold searchable-name" style="color: #1e293b;"><%= user.name %></span>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3 text-muted searchable-username"><%= user.username %></td>
+                                                <td class="py-3 text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
+                                                <td class="py-3">
+                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold shadow-sm" style="background-color: #0d9488; color: white;">Staff</span>
+                                                </td>
+                                                <td class="py-3">
+                                                    <% if (user.requires_password_reset) { %>
+                                                        <span class="badge rounded-pill px-3 py-2 text-dark shadow-sm" style="background-color: #fef08a;"><i class="bi bi-exclamation-circle me-1"></i>Pending Setup</span>
+                                                    <% } else { %>
+                                                        <span class="badge rounded-pill px-3 py-2 text-white shadow-sm" style="background-color: #22c55e;"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="py-3">
+                                                    <% if (user.username !== 'admin') { %>
+                                                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                            <% if (typeof currentUser !== 'undefined' && currentUser.username === 'admin') { %>
+                                                                <form action="/admin/delete-staff/<%= user.id %>" method="POST" onsubmit="return confirm('Are you sure you want to delete this staff member?');" class="m-0 p-0">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete Staff</button>
+                                                                </form>
+                                                            <% } %>
+                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                                <button type="submit" class="btn btn-sm btn-outline-warning text-dark">Regenerate Access Code</button>
+                                                            </form>
+                                                        </div>
+                                                    <% } %>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                        <% if(staffUsers.length === 0) { %>
+                                            <tr class="no-results-row"><td colspan="6" class="text-center text-muted py-5">No staff users found.</td></tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Customers Tab Pane -->
+                        <div class="tab-pane fade" id="customers-pane" role="tabpanel" aria-labelledby="customers-tab" tabindex="0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead style="background-color: #f8fafc;">
+                                        <tr>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start">Name</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Username</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Phone</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Role</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3">Status</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="customersTableBody">
+                                        <% const customerUsers = users.filter(u => u.role !== 'staff' && u.status !== 'deleted'); %>
+                                        <% customerUsers.forEach(function(user) { %>
+                                            <tr class="searchable-row">
+                                                <td class="py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px; height: 40px; background-color: #f1f5f9; color: #64748b;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+                                                        </div>
+                                                        <span class="fw-bold searchable-name" style="color: #1e293b;"><%= user.name %></span>
+                                                    </div>
+                                                </td>
+                                                <td class="py-3 text-muted searchable-username"><%= user.username %></td>
+                                                <td class="py-3 text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
+                                                <td class="py-3">
+                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold text-dark shadow-sm" style="background-color: #e2e8f0;">Customer</span>
+                                                </td>
+                                                <td class="py-3">
+                                                    <% if (user.status === 'deletion_requested') { %>
+                                                        <span class="badge rounded-pill px-3 py-2 text-dark shadow-sm" style="background-color: #fde047;"><i class="bi bi-exclamation-triangle me-1"></i>Deletion Requested</span>
+                                                    <% } else { %>
+                                                        <span class="badge rounded-pill px-3 py-2 text-white shadow-sm" style="background-color: #22c55e;"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="py-3">
+                                                    <% if (user.username !== 'admin') { %>
+                                                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                            <% if (user.status === 'deletion_requested') { %>
+                                                                <form action="/staff/approve-deletion/<%= user.id %>" method="POST" class="m-0 p-0" onsubmit="return confirm('Approve account deletion for this customer?');">
+                                                                    <button type="submit" class="btn btn-sm btn-danger">Approve Deletion</button>
+                                                                </form>
+                                                            <% } %>
+                                                            <% if (typeof currentUser !== 'undefined' && currentUser.username === 'admin') { %>
+                                                                <form action="/admin/delete-customer/<%= user.id %>" method="POST" onsubmit="return confirm('Are you sure you want to delete this customer?');" class="m-0 p-0">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete Customer</button>
+                                                                </form>
+                                                            <% } %>
+                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                                <button type="submit" class="btn btn-sm btn-outline-warning text-dark">Regenerate Access Code</button>
+                                                            </form>
+                                                        </div>
+                                                    <% } %>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                        <% if(customerUsers.length === 0) { %>
+                                            <tr class="no-results-row"><td colspan="6" class="text-center text-muted py-5">No customer users found.</td></tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<style>
+    .form-control:focus {
+        border-color: #0d9488 !important;
+        box-shadow: 0 0 0 0.25rem rgba(13, 148, 136, 0.25) !important;
+    }
+    .btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+    .custom-pill {
+        color: #64748b;
+        background-color: transparent;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+    }
+    .nav-pills .nav-link.active.custom-pill {
+        background-color: #0d9488 !important;
+        color: white !important;
+        box-shadow: 0 4px 6px -1px rgba(13, 148, 136, 0.3);
+    }
+    .custom-pill:hover:not(.active) {
+        background-color: #f1f5f9;
+        color: #0f766e;
+    }
+</style>
+
+<!-- Vanilla JS Search Filter -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.getElementById('searchInput');
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            // Search within the currently active tab pane
+            const activeTabPane = document.querySelector('.tab-pane.active');
+            if (!activeTabPane) return;
+            
+            const rows = activeTabPane.querySelectorAll('.searchable-row');
+
+            rows.forEach(row => {
+                const name = row.querySelector('.searchable-name')?.textContent.toLowerCase() || '';
+                const username = row.querySelector('.searchable-username')?.textContent.toLowerCase() || '';
+                const phone = row.querySelector('.searchable-phone')?.textContent.toLowerCase() || '';
+
+                if (name.includes(query) || username.includes(query) || phone.includes(query)) {
+                    row.style.display = ''; // Show
+                } else {
+                    row.style.display = 'none'; // Hide
+                }
+            });
+        });
+
+        // Re-run search when tabs change so the filter applies to the newly active tab instantly
+        const tabElements = document.querySelectorAll('button[data-bs-toggle="pill"]');
+        tabElements.forEach(tab => {
+            tab.addEventListener('shown.bs.tab', () => {
+                searchInput.dispatchEvent(new Event('input'));
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
