@@ -36,6 +36,12 @@
                     </div>
                 <% } %>
                 
+                <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+                    <div class="alert alert-success text-center mb-4" role="alert">
+                        <%= successMessage %>
+                    </div>
+                <% } %>
+                
                 <!-- Tabs Navigation -->
                 <ul class="nav nav-tabs mb-4 border-0" id="loginTabs" role="tablist">
                     <li class="nav-item w-50 text-center" role="presentation">
