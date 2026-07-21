@@ -347,10 +347,50 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
                     return res.status(500).send("Database error");
                 }
 
-                res.render('staff', {
-                    totalPets: petRows[0].count,
-                    appointmentsToday: apptRows[0].count,
-                    appointments: recentRows
+                const monthlySql = isAdmin
+                    ? "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' GROUP BY MONTH(date)"
+                    : "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' AND vet_id = ? GROUP BY MONTH(date)";
+                const monthlyParams = isAdmin ? [] : [req.session.userId];
+
+                db.query(monthlySql, monthlyParams, (err4, monthlyRows) => {
+                    if (err4) {
+                        console.error("Error fetching monthly appointments:", err4);
+                        return res.status(500).send("Database error");
+                    }
+
+                    const monthlyAppointments = Array(12).fill(0);
+                    monthlyRows.forEach(row => {
+                        if (row.month >= 1 && row.month <= 12) {
+                            monthlyAppointments[row.month - 1] = row.count;
+                        }
+                    });
+
+                    const speciesSql = "SELECT species, COUNT(*) AS count FROM pets GROUP BY species";
+                    db.query(speciesSql, (err5, speciesRows) => {
+                        if (err5) {
+                            console.error("Error fetching species breakdown:", err5);
+                            return res.status(500).send("Database error");
+                        }
+
+                        const speciesBreakdown = [0, 0, 0, 0, 0];
+                        speciesRows.forEach(row => {
+                            const species = (row.species || "").toLowerCase().trim();
+                            const count = row.count;
+                            if (species === 'dog' || species === 'dogs') speciesBreakdown[0] += count;
+                            else if (species === 'cat' || species === 'cats') speciesBreakdown[1] += count;
+                            else if (species === 'bird' || species === 'birds') speciesBreakdown[2] += count;
+                            else if (species === 'rabbit' || species === 'rabbits') speciesBreakdown[3] += count;
+                            else speciesBreakdown[4] += count;
+                        });
+
+                        res.render('staff', {
+                            totalPets: petRows[0].count,
+                            appointmentsToday: apptRows[0].count,
+                            appointments: recentRows,
+                            monthlyAppointments: monthlyAppointments,
+                            speciesBreakdown: speciesBreakdown
+                        });
+                    });
                 });
             });
         });
@@ -394,10 +434,50 @@ app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
                                 return res.status(500).send("Database error");
                             }
 
-                            res.render('vet_dashboard', {
-                                myPatients: patientRows[0].count,
-                                myAppointmentsToday: apptRows[0].count,
-                                myAppointments: apptListRows
+                            const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE YEAR(date) = YEAR(CURDATE()) AND status <> 'cancelled' AND vet_id = ? GROUP BY MONTH(date)";
+                            db.query(monthlySql, [vetId], (err4, monthlyRows) => {
+                                if (err4) {
+                                    console.error("Error fetching vet monthly appointments:", err4);
+                                    return res.status(500).send("Database error");
+                                }
+
+                                const monthlyAppointments = Array(12).fill(0);
+                                monthlyRows.forEach(row => {
+                                    if (row.month >= 1 && row.month <= 12) {
+                                        monthlyAppointments[row.month - 1] = row.count;
+                                    }
+                                });
+
+                                const speciesSql = `SELECT p.species, COUNT(DISTINCT p.id) AS count
+                                                    FROM pets p
+                                                    JOIN appointments a ON a.pet_id = p.id
+                                                    WHERE a.vet_id = ?
+                                                    GROUP BY p.species`;
+                                db.query(speciesSql, [vetId], (err5, speciesRows) => {
+                                    if (err5) {
+                                        console.error("Error fetching vet species breakdown:", err5);
+                                        return res.status(500).send("Database error");
+                                    }
+
+                                    const speciesBreakdown = [0, 0, 0, 0, 0];
+                                    speciesRows.forEach(row => {
+                                        const species = (row.species || "").toLowerCase().trim();
+                                        const count = row.count;
+                                        if (species === 'dog' || species === 'dogs') speciesBreakdown[0] += count;
+                                        else if (species === 'cat' || species === 'cats') speciesBreakdown[1] += count;
+                                        else if (species === 'bird' || species === 'birds') speciesBreakdown[2] += count;
+                                        else if (species === 'rabbit' || species === 'rabbits') speciesBreakdown[3] += count;
+                                        else speciesBreakdown[4] += count;
+                                    });
+
+                                    res.render('vet_dashboard', {
+                                        myPatients: patientRows[0].count,
+                                        myAppointmentsToday: apptRows[0].count,
+                                        myAppointments: apptListRows,
+                                        monthlyAppointments: monthlyAppointments,
+                                        speciesBreakdown: speciesBreakdown
+                                    });
+                                });
                             });
                         }
                     );
