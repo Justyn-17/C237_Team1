@@ -725,6 +725,17 @@ app.post('/forgot-password/verify', async (req, res) => {
     });
 });
 
+app.post('/forgot-password/request-admin-reset', (req, res) => {
+    const { username } = req.body;
+    db.query("UPDATE users SET password_reset_requested = true WHERE username = ?", [username], (err) => {
+        if (err) {
+            console.error("Error requesting admin reset:", err);
+            return res.render('forgot-password-verify', { user: { username }, error: 'An error occurred. Please try again.' });
+        }
+        res.render('login', { error: null, successMessage: "Your reset request has been sent to the clinic staff." });
+    });
+});
+
 // Admin-Assisted Reset Flow
 app.post('/staff/reset-user/:id', async (req, res) => {
     if (req.session.role !== 'staff' && req.session.role !== 'admin') {
