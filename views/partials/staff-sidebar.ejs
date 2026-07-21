@@ -3,6 +3,11 @@
     Only staff.ejs and vet_dashboard.ejs include this file — customer views are untouched.
     */
     const _active = typeof activePage !== 'undefined' ? activePage : '';
+    const _sName = typeof locals.username !== 'undefined' && locals.username ? locals.username : 'Staff Member';
+    let _sRole = 'Staff';
+    if (typeof locals.role !== 'undefined' && locals.role) {
+        _sRole = locals.role.charAt(0).toUpperCase() + locals.role.slice(1);
+    }
     %>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
@@ -83,6 +88,60 @@
         }
 
         .staff-sidebar.collapsed .sidebar-subtitle {
+            display: none;
+        }
+
+        /* Signed-in user chip */
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: .7rem;
+            margin: 0 .75rem 1rem;
+            padding: .7rem .8rem;
+            background: rgba(255, 255, 255, .06);
+            border-radius: .75rem;
+            overflow: hidden;
+        }
+
+        .staff-sidebar.collapsed .sidebar-user {
+            justify-content: center;
+            margin: 0 .5rem 1rem;
+            padding: .6rem 0;
+        }
+
+        .sidebar-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary-teal, #0d9488);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .sidebar-user-meta {
+            min-width: 0;
+        }
+
+        .sidebar-user-name {
+            color: #fff;
+            font-size: .9rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-user-role {
+            color: #94a3b8;
+            font-size: .72rem;
+        }
+
+        .staff-sidebar.collapsed .sidebar-user-meta {
             display: none;
         }
 
@@ -185,6 +244,14 @@
         </div>
         <div class="sidebar-subtitle">Staff Panel</div>
 
+        <div class="sidebar-user">
+            <div class="sidebar-user-avatar"><%= _sName.charAt(0) %></div>
+            <div class="sidebar-user-meta">
+                <div class="sidebar-user-name"><%= _sName %></div>
+                <div class="sidebar-user-role"><%= _sRole %></div>
+            </div>
+        </div>
+
         <ul class="nav flex-column flex-grow-1">
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'dashboard' ? 'active' : '' %>" href="/staff-dashboard" title="Dashboard">
@@ -196,6 +263,13 @@
                     <i class="bi bi-calendar-check"></i> <span class="nav-link-label">Manage Appointments</span>
                 </a>
             </li>
+            <% if (locals.username !== 'admin') { %>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'vet' ? 'active' : '' %>" href="/staff/vet-dashboard" title="Vet Dashboard">
+                    <i class="bi bi-clipboard2-pulse"></i> <span class="nav-link-label">Vet Dashboard</span>
+                </a>
+            </li>
+            <% } %>
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'users' ? 'active' : '' %>" href="/user-directory" title="User Management">
                     <i class="bi bi-people-fill"></i> <span class="nav-link-label">User Management</span>
@@ -216,13 +290,12 @@
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
                 </a>
             </li>
-            <% if (locals.username !== 'admin') { %>
             <li class="nav-item">
-                <a class="nav-link <%= _active === 'vet' ? 'active' : '' %>" href="/staff/vet-dashboard" title="Vet Dashboard">
-                    <i class="bi bi-clipboard2-pulse"></i> <span class="nav-link-label">Vet Dashboard</span>
+                <a class="nav-link <%= _active === 'profile' ? 'active' : '' %>" href="/staff/profile" title="My Profile">
+                    <i class="bi bi-person-circle"></i> <span class="nav-link-label">My Profile</span>
                 </a>
             </li>
-            <% } %>
+
         </ul>
 
         <div class="sidebar-footer p-2">

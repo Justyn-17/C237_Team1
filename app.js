@@ -351,6 +351,36 @@ app.post('/profile/update', requireRole('customer'), (req, res) => {
     });
 });
 
+// Staff Profile
+app.get('/staff/profile', requireRole('staff'), (req, res) => {
+    db.query("SELECT * FROM users WHERE id = ?", [req.session.userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching staff profile:", err);
+            return res.status(500).send("Database error");
+        }
+        if (results.length === 0) {
+            return res.status(404).send("User not found");
+        }
+        res.render('staff-profile', { user: results[0] });
+    });
+});
+
+app.post('/staff/profile/update', requireRole('staff'), (req, res) => {
+    const { name, phone } = req.body;
+    if (!name || !phone) {
+        return res.status(400).send("Name and phone are required");
+    }
+    db.query("UPDATE users SET name = ?, phone = ? WHERE id = ?", [name, phone, req.session.userId], (err) => {
+        if (err) {
+            console.error("Error updating staff profile:", err);
+            return res.status(500).send("Database error");
+        }
+        req.session.name = name;
+        req.session.phone = phone;
+        res.redirect('/staff/profile');
+    });
+});
+
 // Staff Dashboard
 app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
     const isAdmin = req.session.username === 'admin';
