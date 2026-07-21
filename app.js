@@ -27,7 +27,7 @@ app.set('view engine', 'ejs');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper available to all views to normalize photo paths (avoid leaking absolute/stale filesystem paths)
-app.locals.photoPath = function(photo) {
+app.locals.photoPath = function (photo) {
     if (!photo) return null;
     if (photo.includes('\\') || /^[A-Za-z]:/.test(photo)) {
         return `/uploads/pets/${path.basename(photo)}`;
@@ -201,6 +201,64 @@ app.get('/staff/settings', requireStaff, (req, res) => {
 });
 
 // ==========================================
+// VET DASHBOARD & REPORTING
+// ==========================================
+app.get('/vet-dashboard', requireStaff, (req, res) => {
+    // 1. Grab the filter from the URL if the user selected one (e.g., ?status=completed)
+    const statusFilter = req.query.status;
+
+    // 2. Metrics Queries
+    const petsQuery = "SELECT COUNT(*) AS totalPets FROM pets";
+    const todayApptsQuery = "SELECT COUNT(*) AS todayAppts FROM appointments WHERE date = CURDATE()";
+
+    // 3. Report Query (Joining appointments and pets tables)
+    let reportQuery = `
+        SELECT a.id, a.date, a.start_time, a.reason, a.status, p.name AS pet_name, p.species 
+        FROM appointments a
+        JOIN pets p ON a.pet_id = p.id
+    `;
+    let queryParams = [];
+
+    // Apply the filter if one is selected
+    if (statusFilter && ['booked', 'completed', 'cancelled'].includes(statusFilter)) {
+        reportQuery += " WHERE a.status = ? ORDER BY a.date DESC, a.start_time ASC";
+        queryParams.push(statusFilter);
+    } else {
+        reportQuery += " ORDER BY a.date DESC, a.start_time ASC";
+    }
+
+    // Execute queries in sequence
+    db.query(petsQuery, (err1, petRes) => {
+        if (err1) {
+            console.error("Error fetching pet stats:", err1);
+            return res.status(500).send("Database error");
+        }
+
+        db.query(todayApptsQuery, (err2, todayRes) => {
+            if (err2) {
+                console.error("Error fetching today's appointments:", err2);
+                return res.status(500).send("Database error");
+            }
+
+            db.query(reportQuery, queryParams, (err3, reportRes) => {
+                if (err3) {
+                    console.error("Error fetching report data:", err3);
+                    return res.status(500).send("Database error");
+                }
+
+                // Send all data to the EJS view
+                res.render('dashboard', {
+                    totalPets: petRes[0].totalPets,
+                    todayAppts: todayRes[0].todayAppts,
+                    appointments: reportRes,
+                    currentFilter: statusFilter || ''
+                });
+            });
+        });
+    });
+});
+
+// ==========================================
 // PET CRUD ROUTES
 // ==========================================
 
@@ -338,7 +396,7 @@ app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) =
 
         const photoPath = req.file ? `/uploads/pets/${req.file.filename}` : pets[0].photo;
         const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ?";
-        
+
         db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId], (err2) => {
             if (err2) {
                 console.error("Error updating pet:", err2);
@@ -353,7 +411,7 @@ app.post('/pets/edit/:id', requireCustomer, upload.single('photo'), (req, res) =
 app.post('/pets/delete/:id', requireCustomer, (req, res) => {
     const petId = req.params.id;
     const sql = "DELETE FROM pets WHERE id = ?";
-    
+
     db.query(sql, [petId], (err) => {
         if (err) {
             console.error("Error deleting pet:", err);
