@@ -13,23 +13,19 @@
                         🔔 Care Reminders
                     </h2>
 
+                    <% if (role === 'customer') { %>
                     <div class="d-flex justify-content-end mb-4">
-
                         <a href="/reminders/add"
                            class="btn btn-success rounded-pill fw-bold px-4">
-
                             ➕ Add Reminder
-
                         </a>
-
                     </div>
+                    <% } %>
 
                     <% if (reminders.length === 0) { %>
 
                         <div class="alert alert-info text-center">
-
                             No reminders found.
-
                         </div>
 
                     <% } else { %>
@@ -43,14 +39,13 @@
                                 <tr>
 
                                     <th>Pet</th>
-
                                     <th>Reminder</th>
-
                                     <th>Due Date</th>
-
                                     <th>Status</th>
 
-                                    <th class="text-end">Actions</th>
+                                    <% if (role === 'customer') { %>
+                                        <th class="text-end">Actions</th>
+                                    <% } %>
 
                                 </tr>
 
@@ -62,26 +57,12 @@
 
                                 <tr>
 
-                                    <td>
+                                    <td><strong><%= reminder.pet_name %></strong></td>
 
-                                        <strong>
-
-                                            <%= reminder.pet_name %>
-
-                                        </strong>
-
-                                    </td>
+                                    <td><%= reminder.reminder_title %></td>
 
                                     <td>
-
-                                        <%= reminder.reminder_title %>
-
-                                    </td>
-
-                                    <td>
-
                                         <%= new Date(reminder.due_date).toLocaleDateString() %>
-
                                     </td>
 
                                     <td>
@@ -89,46 +70,38 @@
                                         <% if(reminder.displayStatus==="Completed"){ %>
 
                                             <span class="badge bg-success">
-
                                                 Completed
-
                                             </span>
 
                                         <% } else if(reminder.displayStatus==="Overdue"){ %>
 
                                             <span class="badge bg-danger">
-
                                                 Overdue
-
                                             </span>
 
                                         <% } else if(reminder.displayStatus==="Due Today"){ %>
 
                                             <span class="badge bg-warning text-dark">
-
                                                 Due Today
-
                                             </span>
 
                                         <% } else { %>
 
                                             <span class="badge bg-primary">
-
                                                 Upcoming
-
                                             </span>
 
                                         <% } %>
 
                                     </td>
 
+                                    <% if (role === 'customer') { %>
+
                                     <td class="text-end">
 
                                         <a href="/reminders/edit/<%= reminder.id %>"
                                            class="btn btn-warning btn-sm">
-
                                             ✏️ Edit
-
                                         </a>
 
                                         <form
@@ -137,16 +110,15 @@
                                             class="d-inline"
                                             onsubmit="return confirm('Delete this reminder?');">
 
-                                            <button
-                                                class="btn btn-danger btn-sm">
-
+                                            <button class="btn btn-danger btn-sm">
                                                 🗑 Delete
-
                                             </button>
 
                                         </form>
 
                                     </td>
+
+                                    <% } %>
 
                                 </tr>
 
@@ -162,12 +134,21 @@
 
                     <div class="text-center mt-4">
 
-                        <a href="/customer-dashboard"
-                           class="btn btn-secondary rounded-pill px-4">
+                        <% if (role === 'customer') { %>
 
-                            ← Back to Dashboard
+                            <a href="/customer-dashboard"
+                               class="btn btn-secondary rounded-pill px-4">
+                                ← Back to Dashboard
+                            </a>
 
-                        </a>
+                        <% } else { %>
+
+                            <a href="/staff-dashboard"
+                               class="btn btn-secondary rounded-pill px-4">
+                                ← Back to Dashboard
+                            </a>
+
+                        <% } %>
 
                     </div>
 
