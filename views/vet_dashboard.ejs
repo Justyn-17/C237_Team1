@@ -76,7 +76,6 @@
                                             <div class="card-body">
                                                 <h6 class="fw-bold mb-3">
                                                     Monthly Appointments
-                                                    <span class="badge bg-light text-muted border ms-1">mock data</span>
                                                 </h6>
                                                 <canvas id="vetMonthlyAppointmentsChart"></canvas>
                                             </div>
@@ -87,7 +86,6 @@
                                             <div class="card-body">
                                                 <h6 class="fw-bold mb-3">
                                                     Pet Species Breakdown
-                                                    <span class="badge bg-light text-muted border ms-1">mock data</span>
                                                 </h6>
                                                 <canvas id="vetSpeciesBreakdownChart"></canvas>
                                             </div>
@@ -179,14 +177,16 @@
 
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
         <script>
-            // --- Mock data placeholders — swap for real query results whenever the backend is ready. ---
+            const monthlyAppointments = <%- typeof monthlyAppointments !== 'undefined' ? JSON.stringify(monthlyAppointments).replace(/</g, '\\u003c') : '[]' %>;
+            const speciesBreakdown = <%- typeof speciesBreakdown !== 'undefined' ? JSON.stringify(speciesBreakdown).replace(/</g, '\\u003c') : '[]' %>;
+
             new Chart(document.getElementById('vetMonthlyAppointmentsChart'), {
                 type: 'bar',
                 data: {
                     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
                     datasets: [{
                         label: 'Appointments',
-                        data: [8, 10, 9, 12, 14, 11, 15, 13, 12, 16, 17, 14],
+                        data: monthlyAppointments,
                         backgroundColor: '#0d9488',
                         borderRadius: 6
                     }]
@@ -203,13 +203,17 @@
                 data: {
                     labels: ['Dogs', 'Cats', 'Birds', 'Rabbits', 'Other'],
                     datasets: [{
-                        data: [50, 28, 8, 8, 6],
-                        backgroundColor: ['#0d9488', '#115e59', '#5eead4', '#99f6e4', '#cbd5e1']
+                        data: speciesBreakdown,
+                        backgroundColor: ['#0f766e', '#115e59', '#34d399', '#6ee7b7', '#cbd5e1'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { position: 'bottom' } }
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { boxWidth: 20 } } 
+                    }
                 }
             });
         </script>
