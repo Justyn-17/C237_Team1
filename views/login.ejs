@@ -20,8 +20,8 @@
         </div>
         
         <!-- Right Column: Login Form -->
-        <div class="col-md-6 col-lg-5 bg-white d-flex align-items-center justify-content-center px-4 py-5">
-            <div class="w-100" style="max-width: 450px;">
+        <div class="col-md-6 col-lg-5 d-flex align-items-center justify-content-center px-4 py-5" style="background-color: #0f172a;">
+            <div class="w-100 p-4 p-md-5 rounded-4 shadow-lg" style="max-width: 450px; background-color: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1);">
                 
                 <!-- Mobile Only Home Link -->
                 <a href="/" class="d-md-none text-teal text-decoration-none fw-semibold mb-4 d-inline-block">
@@ -114,22 +114,44 @@
 <style>
     /* Styling for active tabs to match the teal theme */
     .nav-tabs .nav-link.active {
-        color: var(--primary-teal) !important;
-        border-bottom: 3px solid var(--primary-teal) !important;
+        color: #2dd4bf !important;
+        border-bottom: 3px solid #2dd4bf !important;
         background: transparent !important;
     }
     .nav-tabs .nav-link {
-        color: #6c757d;
+        color: #94a3b8;
         border: none;
         border-bottom: 3px solid transparent;
     }
     .nav-tabs .nav-link:hover {
         border-color: transparent;
-        color: var(--primary-teal-hover);
+        color: #2dd4bf;
     }
     
     .text-shadow {
         text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Dark Mode Form Overrides */
+    h2, .text-muted, .text-secondary {
+        color: #f8fafc !important;
+    }
+    .form-control {
+        background-color: #0f172a !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: #f8fafc !important;
+    }
+    .form-control::placeholder {
+        color: #64748b !important;
+    }
+    .text-teal {
+        color: #2dd4bf !important;
+    }
+    .bg-light {
+        background-color: #0f172a !important;
+    }
+    .border {
+        border-color: rgba(255, 255, 255, 0.1) !important;
     }
 </style>
 

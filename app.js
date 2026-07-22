@@ -129,6 +129,10 @@ db.connect((err) => {
     console.log('Connected to Azure MySQL database.');
 });
 
+db.on('error', (err) => {
+    console.error('Database connection error:', err);
+});
+
 // Global Session Invalidation Middleware
 app.use((req, res, next) => {
     if (req.session && req.session.username) {
@@ -163,6 +167,11 @@ app.get('/', (req, res) => {
         return res.redirect('/staff-dashboard');
     }
     res.render('index');
+});
+
+// Services Information Page
+app.get('/services', (req, res) => {
+    res.render('services');
 });
 
 // Register Page
