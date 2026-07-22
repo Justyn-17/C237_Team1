@@ -1,19 +1,497 @@
 <%- include('partials/header') %>
 <%- include('partials/navbar') %>
 
-<main class="container">
-    <div class="hero-section text-center">
-        <h1 class="display-4 fw-bold mb-3">Welcome to PetCenter</h1>
-        <p class="lead col-md-8 mx-auto mb-4 opacity-75">
-            Your trusted partner for pet care, boarding, and veterinary services. 
-            Providing world-class care for your furry family members.
-        </p>
-        <a href="/login" class="btn btn-light btn-lg px-5 py-3 rounded-pill text-teal fw-bold shadow">
-            Get Started
-        </a>
+<style>
+  :root {
+    --primary-teal: #0d9488;
+    --primary-teal-light: #2dd4bf;
+    --primary-teal-dark: #115e59;
+    --dark-slate: #0f172a;
+    --slate-card: #1e293b;
+  }
+
+  /* Remove Navbar Bottom Margin for Flush Hero Integration */
+  .navbar {
+    margin-bottom: 0 !important;
+  }
+
+  /* Premium Dark Slate & Teal Radial Mesh Hero */
+  .hero-section {
+    background: 
+      radial-gradient(circle at 85% 15%, rgba(13, 148, 136, 0.28) 0%, transparent 45%),
+      radial-gradient(circle at 15% 85%, rgba(15, 23, 42, 0.95) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0d9488 100%);
+    min-height: calc(100vh - 70px);
+    width: 100%;
+    padding-top: 80px;
+    padding-bottom: 80px;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-container-constrained {
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  .text-teal-gradient {
+    background: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-badge-glow {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #2dd4bf;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 10px #2dd4bf;
+    animation: pulseGlow 2s infinite ease-in-out;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
+  }
+
+  .hero-feature-tag {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    font-size: 0.88rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 50rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .btn-hero-primary {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    color: #ffffff !important;
+    border: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 25px rgba(13, 148, 136, 0.35);
+  }
+
+  .btn-hero-primary:hover {
+    background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+    color: #ffffff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(13, 148, 136, 0.5);
+  }
+
+  .btn-hero-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .btn-hero-secondary:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #ffffff !important;
+    transform: translateY(-2px);
+  }
+
+  .hero-media-wrapper {
+    position: relative;
+    border-radius: 1.75rem;
+    overflow: hidden;
+    background: var(--dark-slate);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.6);
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-media-wrapper img {
+    width: 100%;
+    height: 100%;
+    min-height: 360px;
+    max-height: 520px;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.6s ease;
+  }
+
+  .hero-media-wrapper:hover img {
+    transform: scale(1.04);
+  }
+
+  .glass-card-overlay {
+    position: absolute;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  }
+
+  .glass-card-top-right {
+    top: 20px;
+    right: 20px;
+  }
+
+  .glass-card-bottom-left {
+    bottom: 20px;
+    left: 20px;
+  }
+
+  /* Full-width Services Section */
+  .services-section {
+    background-color: #f8fafc;
+    padding: 5rem 0;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  /* Morphing Hover Gallery */
+  .services-gallery {
+    display: flex;
+    gap: 10px;
+    height: 400px;
+    width: 100%;
+  }
+
+  .service-card {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: flex 0.5s ease-in-out, transform 0.3s ease, box-shadow 0.3s ease;
+    color: white;
+    text-decoration: none;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .service-card:hover {
+    flex: 5;
+    box-shadow: 0 20px 30px rgba(13, 148, 136, 0.25);
+  }
+
+  /* Card Gradient Backgrounds */
+  .service-card-1 {
+    background: linear-gradient(145deg, #1e293b 0%, #0d9488 100%);
+  }
+
+  .service-card-2 {
+    background: linear-gradient(145deg, #0d9488 0%, #115e59 100%);
+  }
+
+  .service-card-3 {
+    background: linear-gradient(145deg, #0f766e 0%, #1e293b 100%);
+  }
+
+  .service-card-4 {
+    background: linear-gradient(145deg, #1e293b 0%, #0f766e 100%);
+  }
+
+  .service-card-inner {
+    height: 100%;
+    width: 100%;
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+  }
+
+  .service-icon-wrapper {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+  }
+
+  .service-collapsed-title {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    white-space: nowrap;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-top: auto;
+    transition: opacity 0.3s ease;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .service-card:hover .service-collapsed-title {
+    opacity: 0;
+    display: none;
+  }
+
+  .service-expanded-content {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease 0.15s, visibility 0.4s ease 0.15s;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: 100%;
+  }
+
+  .service-card:hover .service-expanded-content {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .service-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+
+  .service-description {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+    max-width: 340px;
+  }
+
+  /* Responsive layout for mobile screens */
+  @media (max-width: 768px) {
+    .hero-section {
+      min-height: auto;
+      padding-top: 50px;
+      padding-bottom: 50px;
+    }
+
+    .hero-media-wrapper img {
+      min-height: 280px;
+      max-height: 340px;
+    }
+
+    .glass-card-top-right {
+      top: 10px;
+      right: 10px;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+    }
+
+    .glass-card-bottom-left {
+      bottom: 10px;
+      left: 10px;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+    }
+
+    .services-gallery {
+      flex-direction: column;
+      height: auto;
+    }
+    
+    .service-card {
+      height: 140px;
+      flex: none !important;
+      transition: height 0.5s ease-in-out;
+    }
+    
+    .service-card:hover {
+      height: 260px;
+    }
+    
+    .service-collapsed-title {
+      writing-mode: horizontal-tb;
+      transform: none;
+      margin-top: 0;
+    }
+  }
+</style>
+
+<main class="w-100 p-0">
+  <!-- Premium Glassmorphism & Mesh Gradient Hero Section -->
+  <section class="hero-section d-flex align-items-center">
+    <div class="container-fluid px-4 px-lg-5 hero-container-constrained">
+      <div class="row align-items-center g-4 g-lg-5 w-100 mx-0">
+        <!-- Left Text Column -->
+        <div class="col-12 col-lg-6 mb-4 mb-lg-0">
+          <div class="hero-badge-glow mb-3 d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill">
+            <span class="pulse-dot"></span>
+            <span>🐾 Premier Pet Healthcare & Wellness Clinic</span>
+          </div>
+
+          <h1 class="fw-bold text-white mb-3" style="font-size: clamp(2.2rem, 3.8vw, 4.5rem); line-height: 1.15; letter-spacing: -0.5px;">
+            World-Class Care For Your <span class="text-teal-gradient">Furry Family</span>
+          </h1>
+
+          <p class="lead mb-4" style="color: #94a3b8; font-size: clamp(1rem, 1.25vw, 1.2rem); max-width: 580px; line-height: 1.6;">
+            From preventive wellness and immunizations to advanced surgical procedures and luxury grooming, our certified veterinary team delivers compassionate, top-tier medical care.
+          </p>
+
+          <!-- Feature Pills -->
+          <div class="d-flex flex-wrap gap-2 mb-4">
+            <span class="hero-feature-tag">🩺 Certified Vet Specialists</span>
+            <span class="hero-feature-tag">⚡ 24/7 Emergency Care</span>
+            <span class="hero-feature-tag">❤ 5,000+ Happy Patients</span>
+          </div>
+
+          <!-- CTA Action Buttons -->
+          <div class="d-flex flex-wrap gap-3">
+            <a href="/appointments/new" class="btn btn-hero-primary btn-lg rounded-pill px-4 py-3 fw-bold">
+              Book an Appointment
+            </a>
+            <a href="#services" class="btn btn-hero-secondary btn-lg rounded-pill px-4 py-3 fw-bold">
+              Explore Services
+            </a>
+          </div>
+        </div>
+
+        <!-- Right Visual Media Column with Floating Glass Cards -->
+        <div class="col-12 col-lg-6 d-flex align-items-center">
+          <div class="hero-media-wrapper w-100">
+            <img src="https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=1000&auto=format&fit=crop" 
+                 alt="Pet Care Clinic Services" 
+                 onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1576201836106-db1758fd1c97?q=80&w=1000&auto=format&fit=crop';" 
+                 class="img-fluid w-100" 
+                 style="object-fit: cover; width: 100%; height: 100%; min-height: 360px; max-height: 520px; border-radius: 1.75rem;" />
+
+            <!-- Floating Top Right Rating Card -->
+            <div class="glass-card-overlay glass-card-top-right d-flex align-items-center gap-2">
+              <span style="color: #fbbf24; font-size: 1.1rem;">★</span>
+              <div>
+                <div class="fw-bold" style="font-size: 0.9rem; line-height: 1;">4.9 / 5.0 Rating</div>
+                <small style="color: #94a3b8; font-size: 0.75rem;">Verified Pet Parents</small>
+              </div>
+            </div>
+
+            <!-- Floating Bottom Left Badge Card -->
+            <div class="glass-card-overlay glass-card-bottom-left d-flex align-items-center gap-2">
+              <span style="color: #2dd4bf; font-size: 1.2rem;">🏥</span>
+              <div>
+                <div class="fw-bold" style="font-size: 0.9rem; line-height: 1;">Modern Surgical Suite</div>
+                <small style="color: #94a3b8; font-size: 0.72rem;">24/7 Dedicated Emergency Care</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </section>
+
+  <!-- Full-Width Services Section -->
+  <section id="services" class="services-section py-5">
+    <div class="container">
+      <div class="text-center mb-5">
+        <h2 class="fw-bold display-6" style="color: #1e293b;">Our Services</h2>
+        <p class="text-muted fs-6">Explore our specialized clinic offerings and comprehensive treatments</p>
+      </div>
+      <div class="services-gallery">
+        <!-- Service Card 1 -->
+        <div class="service-card service-card-1">
+          <div class="service-card-inner">
+            <div>
+              <div class="service-icon-wrapper">🩺</div>
+              <div class="service-collapsed-title">General Checkup</div>
+            </div>
+            <div class="service-expanded-content">
+              <div>
+                <h3 class="service-title">General Checkup</h3>
+                <p class="service-description">Comprehensive physical examinations, bloodwork diagnostics, and personalized health consultations to keep your pet in peak health.</p>
+              </div>
+              <div>
+                <a href="/login" class="btn btn-light rounded-pill px-4 py-2 text-dark fw-semibold shadow-sm">Learn More</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Card 2 -->
+        <div class="service-card service-card-2">
+          <div class="service-card-inner">
+            <div>
+              <div class="service-icon-wrapper">💉</div>
+              <div class="service-collapsed-title">Vaccinations</div>
+            </div>
+            <div class="service-expanded-content">
+              <div>
+                <h3 class="service-title">Vaccinations</h3>
+                <p class="service-description">Essential immunization schedules and flea/tick protection tailored specifically to your pet's breed, age, and lifestyle.</p>
+              </div>
+              <div>
+                <a href="/login" class="btn btn-light rounded-pill px-4 py-2 text-dark fw-semibold shadow-sm">Learn More</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Card 3 -->
+        <div class="service-card service-card-3">
+          <div class="service-card-inner">
+            <div>
+              <div class="service-icon-wrapper">🏥</div>
+              <div class="service-collapsed-title">Surgery</div>
+            </div>
+            <div class="service-expanded-content">
+              <div>
+                <h3 class="service-title">Surgery & Care</h3>
+                <p class="service-description">Advanced surgical suite equipped for routine spay/neuter operations, soft tissue procedures, and emergency surgical care.</p>
+              </div>
+              <div>
+                <a href="/login" class="btn btn-light rounded-pill px-4 py-2 text-dark fw-semibold shadow-sm">Learn More</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Card 4 -->
+        <div class="service-card service-card-4">
+          <div class="service-card-inner">
+            <div>
+              <div class="service-icon-wrapper">✂️</div>
+              <div class="service-collapsed-title">Grooming</div>
+            </div>
+            <div class="service-expanded-content">
+              <div>
+                <h3 class="service-title">Pet Grooming</h3>
+                <p class="service-description">Luxurious therapeutic baths, breed-specific haircuts, nail trims, and ear cleaning to keep your pet looking and feeling their best.</p>
+              </div>
+              <div>
+                <a href="/login" class="btn btn-light rounded-pill px-4 py-2 text-dark fw-semibold shadow-sm">Learn More</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 </body>
 </html>
+
+
+
+
+
+
+
+

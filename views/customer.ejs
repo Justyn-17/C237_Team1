@@ -161,17 +161,20 @@
           <% pets.forEach(function(pet) { %>
             <div class="col-md-6 col-xl-4">
               <div class="pet-card">
-                <div class="pet-card-top">
-                  <img src="<%= photoPath(pet.photo) || petPlaceholder %>"
-                       alt="<%= pet.name %>" class="pet-avatar">
+                <div class="pet-photo-wrap">
+                  <% if (photoPath(pet.photo)) { %>
+                    <img src="<%= photoPath(pet.photo) %>" alt="<%= pet.name %>" class="pet-photo">
+                  <% } else { %>
+                    <div class="pet-photo-empty">🐾</div>
+                  <% } %>
+                  <span class="pet-photo-tag"><%= pet.species %></span>
                 </div>
                 <div class="pet-card-body">
                   <h6 class="pet-name"><%= pet.name %></h6>
                   <div class="pet-facts">
-                    <span class="chip chip-teal"><%= pet.species %></span>
                     <span class="chip"><%= pet.breed || 'Unknown breed' %></span>
                     <span class="chip"><%= pet.gender %></span>
-                    <span class="chip chip-violet"><%= pet.age %> yr</span>
+                    <span class="chip chip-violet"><%= formatAge(pet.age) %></span>
                   </div>
 
                   <div class="d-flex gap-2 mt-auto">

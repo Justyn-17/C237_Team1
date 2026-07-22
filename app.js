@@ -36,6 +36,21 @@ app.locals.photoPath = function (photo) {
     return photo;
 };
 
+// `pets.age` stores decimals (0.5 = 6 months), so show young pets in months
+// rather than printing "0.5 yr".
+app.locals.formatAge = function (age) {
+    if (age === null || age === undefined || age === '') return '—';
+    const years = Number(age);
+    if (isNaN(years)) return '—';
+    if (years >= 1) {
+        // Drop a trailing ".0" so a 3-year-old reads "3 yr", not "3.0 yr"
+        const shown = Number.isInteger(years) ? years : parseFloat(years.toFixed(1));
+        return `${shown} yr`;
+    }
+    const months = Math.round(years * 12);
+    return months < 1 ? '< 1 mo' : `${months} mo`;
+};
+
 // Inline paw placeholder shown when a pet has no photo. Kept as a data URI so the
 // customer pages don't depend on an external image host.
 app.locals.petPlaceholder =
@@ -88,6 +103,9 @@ app.use((req, res, next) => {
 
 // Role-based access control middleware
 const requireRole = (role) => (req, res, next) => {
+    if (role === 'staff' && req.session.role === 'admin') {
+        return next();
+    }
     if (req.session.role !== role) {
         return res.redirect('/login');
     }
@@ -890,6 +908,10 @@ app.post('/staff/reset-user/:id', async (req, res) => {
             return res.status(403).send("Cannot reset the system admin account");
         }
 
+        if (req.session.role === 'staff' && targetUser.role === 'staff') {
+            return res.status(403).send("Unauthorized: Staff cannot reset other staff codes.");
+        }
+
         const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
         try {
             const salt = await bcrypt.genSalt(10);
@@ -1017,7 +1039,7 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
 // ==========================================
 
 app.get('/addpet', requireRole('customer'), (req, res) => {
-    res.render('addpet');
+    res.render('addpet', { error: null, form: {} });
 });
 
 app.post('/addpet', requireRole('customer'), upload.single('photo'), (req, res) => {
@@ -1031,20 +1053,38 @@ app.post('/addpet', requireRole('customer'), upload.single('photo'), (req, res) 
     const petGender = req.body.gender;
     const petAge = parseFloat(req.body.age);
     const ownerId = req.session.userId;
-    const petPhoto = req.file ? `/uploads/pets/${req.file.filename}` : null;
+    // `pets.photo` is NOT NULL in the database, so a pet without a photo stores an
+    // empty string rather than NULL. photoPath() treats '' as "no photo" and the
+    // views fall back to the paw placeholder.
+    const petPhoto = req.file ? `/uploads/pets/${req.file.filename}` : '';
+
+    // Re-render the form with a message and whatever the customer already typed,
+    // instead of dumping them on a blank error page they have to navigate back from.
+    const showError = (message) =>
+        res.status(400).render('addpet', {
+            error: message,
+            form: {
+                name: petName,
+                species: petSpecies,
+                breed: req.body.breed,
+                customBreed: req.body.customBreed,
+                gender: petGender,
+                age: req.body.age
+            }
+        });
 
     if (!petName || !petSpecies || !petBreed || !petGender || !req.body.age) {
-        return res.status(400).send("Name, Species, Breed, Gender and Age are all required! <a href='/addpet'>Go back</a>");
+        return showError("Please fill in every field: name, species, breed, gender and age are all required.");
     }
     if (isNaN(petAge) || petAge < 0 || petAge > 50) {
-        return res.status(400).send("Invalid age! Age must be between 0 and 50 years. <a href='/addpet'>Go back</a>");
+        return showError("Please enter a valid age between 0 and 50 years.");
     }
 
     const sql = "INSERT INTO pets (owner_id, name, species, breed, gender, age, photo) VALUES (?, ?, ?, ?, ?, ?, ?)";
     db.query(sql, [ownerId, petName, petSpecies, petBreed, petGender, petAge, petPhoto], (err) => {
         if (err) {
             console.error("Error adding pet:", err);
-            return res.status(500).send("Database error");
+            return showError("Sorry, we couldn't save this pet. Please check the details and try again.");
         }
         res.redirect('/customer-dashboard');
     });
@@ -1126,7 +1166,7 @@ app.get('/pets/edit/:id', requireRole('customer'), (req, res) => {
         if (pets[0].photo && (pets[0].photo.includes('\\') || /^[A-Za-z]:/.test(pets[0].photo))) {
             pets[0].photo = `/uploads/pets/${path.basename(pets[0].photo)}`;
         }
-        res.render('editpet', { pet: pets[0] });
+        res.render('editpet', { pet: pets[0], error: null });
     });
 });
 
@@ -1143,11 +1183,27 @@ app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req
     const petGender = req.body.gender;
     const petAge = parseFloat(req.body.age);
 
+    // Show the problem on the form itself, keeping what the customer typed.
+    const showError = (message) =>
+        db.query("SELECT * FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (e, rows) => {
+            if (e || rows.length === 0) {
+                return res.status(400).send("Could not save this pet. <a href='/customer-dashboard'>Go back</a>");
+            }
+            const pet = rows[0];
+            // Keep the submitted values on screen so nothing has to be retyped
+            pet.name = petName || pet.name;
+            pet.species = petSpecies || pet.species;
+            pet.breed = petBreed || pet.breed;
+            pet.gender = petGender || pet.gender;
+            pet.age = req.body.age || pet.age;
+            res.status(400).render('editpet', { pet, error: message });
+        });
+
     if (!petName || !petSpecies || !petBreed || !petGender || !req.body.age) {
-        return res.status(400).send("Name, Species, Breed, Gender and Age are all required! <a href='/pets/edit/" + petId + "'>Go back</a>");
+        return showError("Please fill in every field: name, species, breed, gender and age are all required.");
     }
     if (isNaN(petAge) || petAge < 0 || petAge > 50) {
-        return res.status(400).send("Invalid age! Age must be between 0 and 50 years. <a href='/pets/edit/" + petId + "'>Go back</a>");
+        return showError("Please enter a valid age between 0 and 50 years.");
     }
 
     db.query("SELECT photo FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, pets) => {
@@ -1159,13 +1215,15 @@ app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req
             return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
         }
 
-        const photoPath = req.file ? `/uploads/pets/${req.file.filename}` : pets[0].photo;
+        // photo is NOT NULL in the database — keep the existing value (or '') when
+        // no new file was uploaded.
+        const photoPath = req.file ? `/uploads/pets/${req.file.filename}` : (pets[0].photo || '');
         const sql = "UPDATE pets SET name = ?, species = ?, breed = ?, gender = ?, age = ?, photo = ? WHERE id = ? AND owner_id = ?";
 
         db.query(sql, [petName, petSpecies, petBreed, petGender, petAge, photoPath, petId, req.session.userId], (err2) => {
             if (err2) {
                 console.error("Error updating pet:", err2);
-                return res.status(500).send("Database error");
+                return showError("Sorry, we couldn't save your changes. Please try again.");
             }
             res.redirect('/customer-dashboard');
         });
@@ -1175,14 +1233,45 @@ app.post('/pets/edit/:id', requireRole('customer'), upload.single('photo'), (req
 // Delete pet POST
 app.post('/pets/delete/:id', requireRole('customer'), (req, res) => {
     const petId = req.params.id;
-    const sql = "DELETE FROM pets WHERE id = ? AND owner_id = ?";
 
-    db.query(sql, [petId, req.session.userId], (err) => {
+    // Confirm the pet belongs to this customer before touching anything.
+    db.query("SELECT id FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err, rows) => {
         if (err) {
             console.error("Error deleting pet:", err);
             return res.status(500).send("Database error");
         }
-        res.redirect('/customer-dashboard');
+        if (rows.length === 0) {
+            return res.status(404).send("Pet not found. <a href='/customer-dashboard'>Go back</a>");
+        }
+
+        // Remove the pet's dependent rows first. Without this the appointment and
+        // reminder rows survive with a pet_id that no longer resolves, which is why
+        // staff lists ended up showing a raw pet ID instead of a name.
+        db.query("DELETE FROM care_records WHERE pet_id = ?", [petId], (err1) => {
+            if (err1) console.error("Error deleting pet care records:", err1);
+
+            db.query("DELETE FROM reminders WHERE pet_id = ?", [petId], (err2) => {
+                if (err2) console.error("Error deleting pet reminders:", err2);
+
+                db.query("DELETE FROM appointments WHERE pet_id = ?", [petId], (err3) => {
+                    if (err3) console.error("Error deleting pet appointments:", err3);
+
+                    // Expenses are logged per pet as well; clear the link so the
+                    // owner's expense list doesn't point at a pet that is gone.
+                    db.query("UPDATE expenses SET pet_id = NULL WHERE pet_id = ?", [petId], (err4) => {
+                        if (err4) console.error("Error clearing pet expenses:", err4);
+
+                        db.query("DELETE FROM pets WHERE id = ? AND owner_id = ?", [petId, req.session.userId], (err5) => {
+                            if (err5) {
+                                console.error("Error deleting pet:", err5);
+                                return res.status(500).send("Database error");
+                            }
+                            res.redirect('/customer-dashboard');
+                        });
+                    });
+                });
+            });
+        });
     });
 });
 // ==========================================
@@ -1606,6 +1695,31 @@ app.get('/appointments', (req, res) => {
     const STATUSES = ['booked', 'completed', 'cancelled'];
     const statusFilter = STATUSES.includes(req.query.status) ? req.query.status : '';
 
+    // Optional date filters for the staff/admin view. `range` is a quick preset;
+    // `from`/`to` are explicit yyyy-mm-dd bounds and win over the preset.
+    const RANGES = ['today', 'week', 'upcoming', 'past'];
+    const rangeFilter = RANGES.includes(req.query.range) ? req.query.range : '';
+    const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const fromDate = isDate(req.query.from) ? req.query.from : '';
+    const toDate = isDate(req.query.to) ? req.query.to : '';
+
+    // Build the date portion of the WHERE clause plus its bound parameters.
+    const dateClauses = [];
+    const dateParams = [];
+    if (fromDate || toDate) {
+        if (fromDate) { dateClauses.push('a.date >= ?'); dateParams.push(fromDate); }
+        if (toDate) { dateClauses.push('a.date <= ?'); dateParams.push(toDate); }
+    } else if (rangeFilter === 'today') {
+        dateClauses.push('a.date = CURDATE()');
+    } else if (rangeFilter === 'week') {
+        dateClauses.push('a.date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)');
+    } else if (rangeFilter === 'upcoming') {
+        dateClauses.push('a.date >= CURDATE()');
+    } else if (rangeFilter === 'past') {
+        dateClauses.push('a.date < CURDATE()');
+    }
+    const dateSql = dateClauses.length ? ' AND ' + dateClauses.join(' AND ') : '';
+
     // The system admin oversees every appointment across all vets;
     // a regular staff member (vet) only sees the ones assigned to them.
     const isAdmin = req.session.username === 'admin';
@@ -1632,10 +1746,12 @@ app.get('/appointments', (req, res) => {
             LEFT JOIN pets p ON a.pet_id = p.id
             LEFT JOIN users o ON a.owner_id = o.id
             LEFT JOIN users v ON a.vet_id = v.id
-            ${statusFilter ? 'WHERE a.status = ?' : ''}
+            WHERE 1 = 1
+              ${statusFilter ? 'AND a.status = ?' : ''}
+              ${dateSql}
             ORDER BY a.date, a.start_time
         `;
-        params = statusFilter ? [statusFilter] : [];
+        params = statusFilter ? [statusFilter, ...dateParams] : [...dateParams];
     } else if (req.session.role === 'staff') {
         sql = `
             SELECT a.*, p.name AS pet_name, o.name AS owner_name
@@ -1644,9 +1760,12 @@ app.get('/appointments', (req, res) => {
             LEFT JOIN users o ON a.owner_id = o.id
             WHERE a.vet_id = ?
               ${statusFilter ? 'AND a.status = ?' : ''}
+              ${dateSql}
             ORDER BY a.date, a.start_time
         `;
-        params = statusFilter ? [req.session.userId, statusFilter] : [req.session.userId];
+        params = statusFilter
+            ? [req.session.userId, statusFilter, ...dateParams]
+            : [req.session.userId, ...dateParams];
     } else {
         return res.status(403).send("Forbidden.");
     }
@@ -1657,7 +1776,14 @@ app.get('/appointments', (req, res) => {
             return res.status(500).send("Could not load appointments.");
         }
 
-        res.render('appointments_index', { appointments: rows, statusFilter, isAdmin });
+        res.render('appointments_index', {
+            appointments: rows,
+            statusFilter,
+            isAdmin,
+            rangeFilter,
+            fromDate,
+            toDate
+        });
     });
 });
 

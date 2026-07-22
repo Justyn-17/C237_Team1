@@ -17,7 +17,20 @@
         </a>
       </div>
 
-      <form action="/addpet" method="POST" enctype="multipart/form-data">
+      <%
+        // Values are echoed back when the server rejects the form, so nothing is retyped.
+        const f = typeof form !== 'undefined' && form ? form : {};
+        const formError = typeof error !== 'undefined' ? error : null;
+      %>
+
+      <% if (formError) { %>
+        <div class="alert alert-danger d-flex align-items-center gap-2 rounded-3 border-0 mb-3">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <div><%= formError %></div>
+        </div>
+      <% } %>
+
+      <form id="petForm" action="/addpet" method="POST" enctype="multipart/form-data" novalidate>
         <div class="row g-3">
 
           <div class="col-lg-8">
@@ -28,51 +41,60 @@
                 <div class="row g-3">
                   <!-- Max length 50 chars to prevent typing whole paragraphs as a name -->
                   <div class="col-md-6">
-                    <label class="form-label-sm d-block">Pet Name</label>
-                    <input type="text" name="name" class="form-control app-input" maxlength="50" required>
+                    <label class="form-label-sm d-block" for="petName">Pet Name</label>
+                    <input type="text" id="petName" name="name" class="form-control app-input"
+                           maxlength="50" value="<%= f.name || '' %>" required>
+                    <div class="invalid-feedback">Please enter your pet's name.</div>
                   </div>
 
                   <div class="col-md-6">
-                    <label class="form-label-sm d-block">Species</label>
+                    <label class="form-label-sm d-block" for="speciesSelect">Species</label>
                     <select name="species" id="speciesSelect" class="form-select app-input" required>
-                      <option value="" disabled selected>Select Species</option>
-                      <option value="Dog">🐕 Dog</option>
-                      <option value="Cat">🐈 Cat</option>
-                      <option value="Bird">🐦 Bird</option>
-                      <option value="Rabbit">🐰 Rabbit</option>
+                      <option value="" disabled <%= f.species ? '' : 'selected' %>>Select Species</option>
+                      <option value="Dog"    <%= f.species === 'Dog'    ? 'selected' : '' %>>🐕 Dog</option>
+                      <option value="Cat"    <%= f.species === 'Cat'    ? 'selected' : '' %>>🐈 Cat</option>
+                      <option value="Bird"   <%= f.species === 'Bird'   ? 'selected' : '' %>>🐦 Bird</option>
+                      <option value="Rabbit" <%= f.species === 'Rabbit' ? 'selected' : '' %>>🐰 Rabbit</option>
                     </select>
+                    <div class="invalid-feedback">Please select a species.</div>
                   </div>
 
                   <div class="col-md-6">
-                    <label class="form-label-sm d-block">Breed</label>
+                    <label class="form-label-sm d-block" for="breedSelect">Breed</label>
                     <select name="breed" id="breedSelect" class="form-select app-input" required>
-                      <option value="" disabled selected>Select Breed</option>
+                      <option value="" disabled selected>Select a species first</option>
                     </select>
+                    <div class="invalid-feedback">Please select a breed.</div>
                   </div>
 
                   <!-- Custom breed input for "Other" option -->
                   <div class="col-md-6" id="customBreedDiv" style="display: none;">
-                    <label class="form-label-sm d-block">Enter Custom Breed</label>
+                    <label class="form-label-sm d-block" for="customBreedInput">Enter Custom Breed</label>
                     <input type="text" name="customBreed" id="customBreedInput"
                            class="form-control app-input" maxlength="50"
+                           value="<%= f.customBreed || '' %>"
                            placeholder="e.g. Mixed Breed, Crossbreed">
+                    <div class="invalid-feedback">Please type the breed name.</div>
                   </div>
 
                   <div class="col-md-6">
-                    <label class="form-label-sm d-block">Gender</label>
-                    <select name="gender" class="form-select app-input" required>
-                      <option value="" disabled selected>Select Gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Unknown">Unknown</option>
+                    <label class="form-label-sm d-block" for="genderSelect">Gender</label>
+                    <select name="gender" id="genderSelect" class="form-select app-input" required>
+                      <option value="" disabled <%= f.gender ? '' : 'selected' %>>Select Gender</option>
+                      <option value="Male"    <%= f.gender === 'Male'    ? 'selected' : '' %>>Male</option>
+                      <option value="Female"  <%= f.gender === 'Female'  ? 'selected' : '' %>>Female</option>
+                      <option value="Unknown" <%= f.gender === 'Unknown' ? 'selected' : '' %>>Unknown</option>
                     </select>
+                    <div class="invalid-feedback">Please select a gender.</div>
                   </div>
 
                   <!-- Age with decimal support for months -->
                   <div class="col-md-6">
-                    <label class="form-label-sm d-block">Age (in years)</label>
-                    <input type="number" name="age" step="0.1" class="form-control app-input"
-                           min="0" max="50" placeholder="e.g. 2 or 0.5 (for 6 months)" required>
+                    <label class="form-label-sm d-block" for="petAge">Age (in years)</label>
+                    <input type="number" id="petAge" name="age" step="0.1" class="form-control app-input"
+                           min="0" max="50" value="<%= f.age || '' %>"
+                           placeholder="e.g. 2 or 0.5 (for 6 months)" required>
+                    <div class="invalid-feedback">Please enter an age between 0 and 50.</div>
                     <div class="form-text">Use decimals for months: 0.5 = 6 months, 0.25 = 3 months, 0.08 = 1 month</div>
                   </div>
                 </div>
@@ -119,35 +141,71 @@
         Rabbit: ['Holland Lop', 'Dwarf Hotot', 'Dutch Rabbit', 'Angora', 'Rex', 'Mini Lop', 'Lionhead']
     };
 
+    const petForm = document.getElementById('petForm');
     const speciesSelect = document.getElementById('speciesSelect');
     const breedSelect = document.getElementById('breedSelect');
     const customBreedDiv = document.getElementById('customBreedDiv');
     const customBreedInput = document.getElementById('customBreedInput');
 
-    speciesSelect.addEventListener('change', function() {
-        const selectedSpecies = this.value;
-        breedSelect.innerHTML = '<option value="" disabled selected>Select Breed</option>';
-        customBreedDiv.style.display = 'none';
-        customBreedInput.value = '';
-        customBreedInput.removeAttribute('required');
+    // Breed the server sent back after a rejected submit, so the choice survives.
+    const submittedBreed = <%- JSON.stringify((typeof form !== 'undefined' && form && form.breed) || '') %>;
 
-        if (selectedSpecies && breedOptions[selectedSpecies]) {
-            breedOptions[selectedSpecies].forEach(breed => {
-                const option = document.createElement('option');
-                option.value = breed;
-                option.textContent = breed;
-                breedSelect.appendChild(option);
-            });
+    // Fills the breed list for the currently selected species. This runs on page
+    // load as well as on change: without it, coming back to a page that already
+    // has a species selected (browser Back button, or a re-rendered form) left the
+    // breed dropdown empty with nothing to pick.
+    function populateBreeds(keepBreed) {
+        const selectedSpecies = speciesSelect.value;
+        breedSelect.innerHTML = '';
 
-            // Add "Other" option
-            const otherOption = document.createElement('option');
-            otherOption.value = 'other';
-            otherOption.textContent = '➕ Other (enter custom breed)';
-            breedSelect.appendChild(otherOption);
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.textContent = selectedSpecies ? 'Select Breed' : 'Select a species first';
+        breedSelect.appendChild(placeholder);
+
+        if (!selectedSpecies || !breedOptions[selectedSpecies]) {
+            placeholder.selected = true;
+            customBreedDiv.style.display = 'none';
+            customBreedInput.removeAttribute('required');
+            return;
         }
+
+        let matched = false;
+        breedOptions[selectedSpecies].forEach(breed => {
+            const option = document.createElement('option');
+            option.value = breed;
+            option.textContent = breed;
+            if (keepBreed && breed === keepBreed) {
+                option.selected = true;
+                matched = true;
+            }
+            breedSelect.appendChild(option);
+        });
+
+        // Add "Other" option
+        const otherOption = document.createElement('option');
+        otherOption.value = 'other';
+        otherOption.textContent = '➕ Other (enter custom breed)';
+        breedSelect.appendChild(otherOption);
+
+        if (keepBreed === 'other' || (keepBreed && !matched)) {
+            otherOption.selected = true;
+            customBreedDiv.style.display = 'block';
+            customBreedInput.setAttribute('required', 'required');
+        } else {
+            if (!matched) placeholder.selected = true;
+            customBreedDiv.style.display = 'none';
+            customBreedInput.removeAttribute('required');
+        }
+    }
+
+    speciesSelect.addEventListener('change', function () {
+        customBreedInput.value = '';
+        populateBreeds('');
     });
 
-    breedSelect.addEventListener('change', function() {
+    breedSelect.addEventListener('change', function () {
         if (this.value === 'other') {
             customBreedDiv.style.display = 'block';
             customBreedInput.setAttribute('required', 'required');
@@ -168,14 +226,24 @@
         }
     });
 
-    // Form submission validation
-    document.querySelector('form').addEventListener('submit', function(e) {
-        if (breedSelect.value === 'other' && !customBreedInput.value.trim()) {
+    // Show a message under each field that still needs an answer, rather than
+    // letting the server bounce the customer to a blank error page.
+    petForm.addEventListener('submit', function (e) {
+        if (!petForm.checkValidity()) {
             e.preventDefault();
-            alert('Please enter a custom breed or select one from the list.');
-            customBreedInput.focus();
-            return false;
+            e.stopPropagation();
+            petForm.classList.add('was-validated');
+            const firstInvalid = petForm.querySelector(':invalid');
+            if (firstInvalid) firstInvalid.focus();
         }
+    });
+
+    populateBreeds(submittedBreed);
+
+    // Restoring from the browser's back/forward cache keeps the old selections but
+    // not the generated <option> list, so rebuild it.
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) populateBreeds(breedSelect.value || submittedBreed);
     });
 </script>
 
