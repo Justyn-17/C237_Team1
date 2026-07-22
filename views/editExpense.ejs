@@ -1,0 +1,76 @@
+<%- include('partials/header') %>
+
+<div class="app-shell">
+    <%- include('partials/customer-sidebar', { activePage: 'expenses' }) %>
+
+    <div class="app-main">
+        <div class="app-content">
+
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">Edit <span class="accent">Expense</span></h1>
+                    <p class="page-sub">Update the details of this expense.</p>
+                </div>
+                <a href="/expenses" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Expenses
+                </a>
+            </div>
+
+            <div class="panel" style="max-width: 640px;">
+                <div class="panel-body">
+                    <form method="POST" action="/expenses/edit/<%= expense.id %>">
+
+                        <div class="form-section-title">Expense Details</div>
+
+                        <div class="mb-3">
+                            <label class="form-label-sm">Category</label>
+                            <select name="category" class="form-select app-input" required>
+                                <% categories.forEach(cat => { %>
+                                    <option value="<%= cat %>" <%= expense.category === cat ? 'selected' : '' %>><%= cat %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label-sm">Pet <span class="text-muted fw-normal text-lowercase">(optional)</span></label>
+                            <select name="pet_id" class="form-select app-input">
+                                <option value="">Not tied to a specific pet</option>
+                                <% pets.forEach(pet => { %>
+                                    <option value="<%= pet.id %>" <%= String(expense.pet_id) === String(pet.id) ? 'selected' : '' %>><%= pet.name %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label-sm">Amount ($)</label>
+                                <input type="number" name="amount" class="form-control app-input" step="0.01" min="0.01" required
+                                       value="<%= Number(expense.amount).toFixed(2) %>">
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label-sm">Date</label>
+                                <input type="date" name="expense_date" class="form-control app-input" required
+                                       value="<%= new Date(expense.expense_date).toISOString().slice(0,10) %>">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label-sm">Description <span class="text-muted fw-normal text-lowercase">(optional)</span></label>
+                            <input type="text" name="description" class="form-control app-input" maxlength="255"
+                                   value="<%= expense.description || '' %>">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                        <a href="/expenses" class="btn btn-link text-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

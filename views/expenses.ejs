@@ -1,0 +1,216 @@
+<%- include('partials/header') %>
+
+<div class="app-shell">
+    <%- include('partials/customer-sidebar', { activePage: 'expenses' }) %>
+
+    <div class="app-main">
+        <div class="app-content">
+
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">Expense <span class="accent">Tracking</span></h1>
+                    <p class="page-sub">Log what you spend on your pets and see where the money goes.</p>
+                </div>
+                <a href="/expenses/add" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Add Expense
+                </a>
+            </div>
+
+            <!-- Summary stats -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="stat-icon teal"><i class="bi bi-calendar3"></i></div>
+                        <div>
+                            <div class="stat-label">This Month</div>
+                            <div class="stat-value">$<%= Number(summary.totalThisMonth).toFixed(2) %></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="bi bi-wallet2"></i></div>
+                        <div>
+                            <div class="stat-label">All Time</div>
+                            <div class="stat-value">$<%= Number(summary.totalAll).toFixed(2) %></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="stat-icon amber"><i class="bi bi-receipt"></i></div>
+                        <div>
+                            <div class="stat-label">Entries Logged</div>
+                            <div class="stat-value"><%= summary.entryCount %></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="stat-icon violet"><i class="bi bi-tags"></i></div>
+                        <div>
+                            <div class="stat-label">Top Category</div>
+                            <div class="stat-value" style="font-size:1.15rem;"><%= topCategory || '—' %></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breakdown charts -->
+            <div class="row g-3 mb-4">
+                <div class="col-lg-5">
+                    <div class="panel h-100">
+                        <div class="panel-head">
+                            <h2 class="panel-title">By Category</h2>
+                        </div>
+                        <div class="panel-body">
+                            <% if (breakdown.length === 0) { %>
+                                <div class="empty-state py-4">
+                                    <span class="empty-emoji">🧾</span>
+                                    <p class="mb-0">No expenses yet to break down.</p>
+                                </div>
+                            <% } else { %>
+                                <canvas id="categoryChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-7">
+                    <div class="panel h-100">
+                        <div class="panel-head">
+                            <h2 class="panel-title">Last 6 Months</h2>
+                        </div>
+                        <div class="panel-body">
+                            <% if (monthly.length === 0) { %>
+                                <div class="empty-state py-4">
+                                    <span class="empty-emoji">📈</span>
+                                    <p class="mb-0">No spending trend to show yet.</p>
+                                </div>
+                            <% } else { %>
+                                <canvas id="monthlyChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters + table -->
+            <div class="panel">
+                <div class="panel-head flex-wrap">
+                    <h2 class="panel-title">All Expenses</h2>
+                    <form method="GET" action="/expenses" class="d-flex flex-wrap gap-2">
+                        <select name="pet_id" class="form-select form-select-sm app-input" onchange="this.form.submit()" style="width:auto;">
+                            <option value="">All Pets</option>
+                            <% pets.forEach(pet => { %>
+                                <option value="<%= pet.id %>" <%= String(petFilter) === String(pet.id) ? 'selected' : '' %>><%= pet.name %></option>
+                            <% }) %>
+                        </select>
+                        <select name="category" class="form-select form-select-sm app-input" onchange="this.form.submit()" style="width:auto;">
+                            <option value="">All Categories</option>
+                            <% categories.forEach(cat => { %>
+                                <option value="<%= cat %>" <%= categoryFilter === cat ? 'selected' : '' %>><%= cat %></option>
+                            <% }) %>
+                        </select>
+                        <% if (petFilter || categoryFilter) { %>
+                            <a href="/expenses" class="btn btn-sm btn-outline-secondary">Clear</a>
+                        <% } %>
+                    </form>
+                </div>
+
+                <% if (expenses.length === 0) { %>
+                    <div class="empty-state">
+                        <span class="empty-emoji">🐾</span>
+                        <h6>No expenses logged</h6>
+                        <p>Start tracking what you spend on your pets.</p>
+                        <a href="/expenses/add" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-lg"></i> Add Your First Expense
+                        </a>
+                    </div>
+                <% } else { %>
+                    <div class="table-responsive">
+                        <table class="app-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Pet</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% expenses.forEach(exp => { %>
+                                    <tr>
+                                        <td><%= new Date(exp.expense_date).toLocaleDateString() %></td>
+                                        <td><span class="chip chip-teal"><%= exp.category %></span></td>
+                                        <td><%= exp.pet_name || '—' %></td>
+                                        <td><%= exp.description || '—' %></td>
+                                        <td class="fw-semibold">$<%= Number(exp.amount).toFixed(2) %></td>
+                                        <td class="text-end">
+                                            <a href="/expenses/edit/<%= exp.id %>" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <form method="POST" action="/expenses/delete/<%= exp.id %>" class="d-inline"
+                                                  onsubmit="return confirm('Delete this expense?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } %>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    const CATEGORY_COLORS = ['#0d9488', '#2563eb', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#64748b'];
+
+    <% if (breakdown.length > 0) { %>
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: <%- JSON.stringify(breakdown.map(b => b.category)) %>,
+            datasets: [{
+                data: <%- JSON.stringify(breakdown.map(b => Number(b.total))) %>,
+                backgroundColor: CATEGORY_COLORS,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+        }
+    });
+    <% } %>
+
+    <% if (monthly.length > 0) { %>
+    new Chart(document.getElementById('monthlyChart'), {
+        type: 'bar',
+        data: {
+            labels: <%- JSON.stringify(monthly.map(m => m.ym)) %>,
+            datasets: [{
+                label: 'Spent',
+                data: <%- JSON.stringify(monthly.map(m => Number(m.total))) %>,
+                backgroundColor: '#0d9488',
+                borderRadius: 6,
+                maxBarThickness: 46
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v } } }
+        }
+    });
+    <% } %>
+</script>
+
+</body>
+</html>

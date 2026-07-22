@@ -1,6 +1,6 @@
 <% /* Shared customer sidebar + customer UI kit.
     Usage: include('partials/customer-sidebar', { activePage: 'dashboard' })
-    activePage values: 'dashboard' | 'book' | 'appointments' | 'reminders' | 'profile'
+    activePage values: 'dashboard' | 'book' | 'appointments' | 'reminders' | 'expenses' | 'profile'
     Only customer-facing views include this file — staff views keep partials/staff-sidebar.
     */
     const _cActive = typeof activePage !== 'undefined' ? activePage : '';
@@ -579,6 +579,11 @@
             <li class="nav-item">
                 <a class="nav-link <%= _cActive === 'reminders' ? 'active' : '' %>" href="/reminders" title="Care Reminders">
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'expenses' ? 'active' : '' %>" href="/expenses" title="Expense Tracking">
+                    <i class="bi bi-cash-coin"></i> <span class="nav-link-label">Expense Tracking</span>
                 </a>
             </li>
             <li class="nav-item">

@@ -1,5 +1,5 @@
 <% /* Shared staff sidebar. Usage: include('partials/staff-sidebar', { activePage: 'dashboard' })
-    activePage values: 'dashboard' | 'appointments' | 'users' | 'pets' | 'settings' | 'reminders' | 'vet'
+    activePage values: 'dashboard' | 'appointments' | 'users' | 'pets' | 'settings' | 'reminders' | 'vet' | 'expenses'
     Only staff.ejs and vet_dashboard.ejs include this file — customer views are untouched.
     */
     const _active = typeof activePage !== 'undefined' ? activePage : '';
@@ -290,6 +290,13 @@
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
                 </a>
             </li>
+            <% if (locals.username === 'admin') { %>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'expenses' ? 'active' : '' %>" href="/staff/expenses" title="Expense Log">
+                    <i class="bi bi-cash-coin"></i> <span class="nav-link-label">Expense Log</span>
+                </a>
+            </li>
+            <% } %>
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'profile' ? 'active' : '' %>" href="/staff/profile" title="My Profile">
                     <i class="bi bi-person-circle"></i> <span class="nav-link-label">My Profile</span>

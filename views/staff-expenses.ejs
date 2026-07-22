@@ -1,0 +1,210 @@
+<%- include('partials/header') %>
+
+<div class="staff-shell">
+    <%- include('partials/staff-sidebar', { activePage: 'expenses' }) %>
+
+    <div class="staff-main">
+        <div class="container-fluid p-4">
+
+            <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+                <div>
+                    <h1 class="h3 fw-bold mb-1">Expense Log</h1>
+                    <p class="text-secondary mb-0">Clinic-wide view of every expense customers have logged.</p>
+                </div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                    <div class="card metric-card h-100">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <div class="metric-icon bg-teal bg-opacity-10 text-teal" style="background:#f0fdfa;color:#0d9488;">
+                                <i class="bi bi-wallet2"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold">All-Time Total</div>
+                                <div class="fs-4 fw-bold">$<%= Number(summary.totalAll).toFixed(2) %></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card metric-card h-100">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <div class="metric-icon" style="background:#eff6ff;color:#2563eb;">
+                                <i class="bi bi-calendar3"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold">This Month</div>
+                                <div class="fs-4 fw-bold">$<%= Number(summary.totalThisMonth).toFixed(2) %></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card metric-card h-100">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <div class="metric-icon" style="background:#fffbeb;color:#d97706;">
+                                <i class="bi bi-receipt"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold">Entries</div>
+                                <div class="fs-4 fw-bold"><%= summary.entryCount %></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card metric-card h-100">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <div class="metric-icon" style="background:#f5f3ff;color:#7c3aed;">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div>
+                                <div class="text-secondary small text-uppercase fw-semibold">Customers Logging</div>
+                                <div class="fs-4 fw-bold"><%= summary.ownerCount %></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="row g-3 mb-4">
+                <div class="col-lg-5">
+                    <div class="card chart-card h-100">
+                        <div class="card-header bg-white fw-semibold">Spending by Category</div>
+                        <div class="card-body">
+                            <% if (breakdown.length === 0) { %>
+                                <p class="text-secondary text-center py-4 mb-0">No expenses logged yet.</p>
+                            <% } else { %>
+                                <canvas id="categoryPie"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-7">
+                    <div class="card chart-card h-100">
+                        <div class="card-header bg-white fw-semibold">Last 6 Months (Clinic-wide)</div>
+                        <div class="card-body">
+                            <% if (monthly.length === 0) { %>
+                                <p class="text-secondary text-center py-4 mb-0">No spending trend yet.</p>
+                            <% } else { %>
+                                <canvas id="monthlyBar"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters + table -->
+            <div class="card">
+                <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span class="fw-semibold">All Entries</span>
+                    <form method="GET" action="/staff/expenses" class="d-flex flex-wrap gap-2">
+                        <input type="text" name="q" class="form-control form-control-sm" style="width:200px;"
+                               placeholder="Search owner or pet" value="<%= search %>">
+                        <select name="category" class="form-select form-select-sm" style="width:auto;">
+                            <option value="">All Categories</option>
+                            <% categories.forEach(cat => { %>
+                                <option value="<%= cat %>" <%= categoryFilter === cat ? 'selected' : '' %>><%= cat %></option>
+                            <% }) %>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                        <% if (search || categoryFilter) { %>
+                            <a href="/staff/expenses" class="btn btn-sm btn-outline-secondary">Clear</a>
+                        <% } %>
+                    </form>
+                </div>
+
+                <% if (expenses.length === 0) { %>
+                    <div class="card-body text-center text-secondary py-5">No expenses match this filter.</div>
+                <% } else { %>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Owner</th>
+                                    <th>Pet</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                    <% if (isAdmin) { %><th></th><% } %>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% expenses.forEach(exp => { %>
+                                    <tr>
+                                        <td><%= new Date(exp.expense_date).toLocaleDateString() %></td>
+                                        <td><%= exp.owner_name || '—' %></td>
+                                        <td><%= exp.pet_name || '—' %></td>
+                                        <td><span class="badge" style="background:#f0fdfa;color:#0f766e;"><%= exp.category %></span></td>
+                                        <td><%= exp.description || '—' %></td>
+                                        <td class="fw-semibold">$<%= Number(exp.amount).toFixed(2) %></td>
+                                        <% if (isAdmin) { %>
+                                        <td class="text-end">
+                                            <form method="POST" action="/staff/expenses/delete/<%= exp.id %>" class="d-inline"
+                                                  onsubmit="return confirm('Remove this expense entry?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                        <% } %>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } %>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    const CATEGORY_COLORS = ['#0d9488', '#2563eb', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#64748b'];
+
+    <% if (breakdown.length > 0) { %>
+    new Chart(document.getElementById('categoryPie'), {
+        type: 'pie',
+        data: {
+            labels: <%- JSON.stringify(breakdown.map(b => b.category)) %>,
+            datasets: [{
+                data: <%- JSON.stringify(breakdown.map(b => Number(b.total))) %>,
+                backgroundColor: CATEGORY_COLORS,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+        }
+    });
+    <% } %>
+
+    <% if (monthly.length > 0) { %>
+    new Chart(document.getElementById('monthlyBar'), {
+        type: 'bar',
+        data: {
+            labels: <%- JSON.stringify(monthly.map(m => m.ym)) %>,
+            datasets: [{
+                label: 'Clinic-wide spend',
+                data: <%- JSON.stringify(monthly.map(m => Number(m.total))) %>,
+                backgroundColor: '#2563eb',
+                borderRadius: 6,
+                maxBarThickness: 46
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v } } }
+        }
+    });
+    <% } %>
+</script>
+
+</body>
+</html>
