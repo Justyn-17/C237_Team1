@@ -290,6 +290,11 @@
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'invoices' ? 'active' : '' %>" href="/staff/invoices" title="Invoicing">
+                    <i class="bi bi-receipt-cutoff"></i> <span class="nav-link-label">Invoicing</span>
+                </a>
+            </li>
             <% if (locals.username === 'admin') { %>
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'expenses' ? 'active' : '' %>" href="/staff/expenses" title="Expense Log">

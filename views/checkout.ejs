@@ -1,0 +1,122 @@
+<%- include('partials/header') %>
+
+    <div class="app-shell">
+        <%- include('partials/customer-sidebar', { activePage: 'expenses' }) %>
+
+            <div class="app-main">
+                <div class="app-content">
+
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Secure <span class="accent">Checkout</span></h1>
+                            <p class="page-sub">Pay your invoice securely.</p>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="panel mb-4">
+                                <div class="panel-head">
+                                    <h2 class="panel-title">Payment Details</h2>
+                                </div>
+                                <div class="panel-body">
+                                    <form action="/checkout/<%= invoice.id %>" method="POST">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-secondary">Cardholder
+                                                Name</label>
+                                            <input type="text" class="form-control" name="cardName" required
+                                                placeholder="John Doe"
+                                                value="<%= savedCard && savedCard.saved_card_name ? savedCard.saved_card_name : '' %>">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-secondary">Card Number</label>
+                                            <input type="text" class="form-control" name="cardNumber" required
+                                                placeholder="XXXX XXXX XXXX XXXX"
+                                                value="<%= savedCard && savedCard.saved_card_last4 ? '•••• •••• •••• ' + savedCard.saved_card_last4 : '' %>"
+                                                maxlength="19"
+                                                pattern="^(\d{4} \d{4} \d{4} \d{4}|•••• •••• •••• \d{4})$"
+                                                oninput="if(!this.value.includes('•')) { let v = this.value.replace(/\D/g, ''); this.value = v.replace(/(.{4})/g, '$1 ').trim().slice(0, 19); }">
+                                        </div>
+
+                                        <div class="mb-4 form-check">
+                                            <input type="checkbox" class="form-check-input" id="saveCardCheck"
+                                                name="saveCard" <%= savedCard && savedCard.saved_card_last4 ? 'checked' : '' %>>
+                                            <label class="form-check-label small text-secondary"
+                                                for="saveCardCheck">Save this card for future payments</label>
+                                        </div>
+
+                                        <div class="row mb-4">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-bold text-secondary">Expiry
+                                                    Date</label>
+                                                <input type="text" class="form-control" name="expiryDate" required
+                                                    placeholder="MM/YY"
+                                                    value="<%= savedCard && savedCard.saved_card_expiry ? savedCard.saved_card_expiry : '' %>"
+                                                    maxlength="5" pattern="(0[1-9]|1[0-2])\/\d{2}"
+                                                    oninput="let v = this.value.replace(/[^0-9]/g, '').slice(0,4); if (v.length >= 2) { v = v.substring(0,2) + '/' + v.substring(2); } this.value = v;">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-bold text-secondary">CVV</label>
+                                                <input type="password" class="form-control" name="cvv" required
+                                                    placeholder="123" maxlength="3" pattern="\d{3}"
+                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);">
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold"
+                                            style="border-radius: 0.5rem;">
+                                            Confirm Payment - $<%= Number(invoice.amount).toFixed(2) %>
+                                        </button>
+                                        <a href="/expenses"
+                                            class="btn btn-link text-secondary w-100 mt-2 text-decoration-none text-center d-block">Cancel</a>
+                                    </form>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="panel">
+                                <div class="panel-head">
+                                    <h2 class="panel-title">Invoice Summary</h2>
+                                </div>
+                                <div class="panel-body">
+                                    <h5 class="mb-3">
+                                        <%= invoice.title %>
+                                    </h5>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Category</span>
+                                        <span>
+                                            <%= invoice.category %>
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Status</span>
+                                        <span class="chip chip-amber text-capitalize">
+                                            <%= invoice.status %>
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Date Issued</span>
+                                        <span>
+                                            <%= new Date(invoice.created_at).toLocaleDateString() %>
+                                        </span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between fw-bold">
+                                        <span>Total Due</span>
+                                        <span class="text-danger">$<%= Number(invoice.amount).toFixed(2) %>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+    </div>
+
+    </body>
+
+    </html>

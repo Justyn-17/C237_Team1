@@ -1,0 +1,203 @@
+<%- include('partials/header') %>
+
+    <div class="staff-shell">
+        <%- include('partials/staff-sidebar', { activePage: 'invoices' }) %>
+
+            <div class="staff-main">
+                <div class="container-fluid p-4">
+
+                    <div class="mb-4">
+                        <h1 class="h3 fw-bold mb-1">Create Invoice</h1>
+                        <p class="text-secondary mb-0">Issue a new invoice to a customer.</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <a href="/appointments" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </a>
+                    </div>
+
+                    <div class="card shadow-sm border-0" style="max-width: 800px;">
+                        <div class="card-header bg-white fw-bold py-3 fs-5">
+                            Invoice Details
+                        </div>
+                        <div class="card-body p-4">
+                            <form action="/staff/invoices/new" method="POST">
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Customer <span
+                                            class="text-danger">*</span></label>
+                                    <select name="owner_id" id="customerSelect" class="form-select bg-light" required
+                                        onchange="filterPets(false)">
+                                        <option value="" disabled <%=!prefill.owner_id ? 'selected' : '' %>>Select a
+                                            customer...</option>
+                                        <% customers.forEach(c=> { %>
+                                            <option value="<%= c.id %>" <%=String(prefill.owner_id)===String(c.id)
+                                                ? 'selected' : '' %>><%= c.name %>
+                                            </option>
+                                            <% }) %>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Pet <span
+                                            class="text-muted fw-normal text-lowercase">(Optional)</span></label>
+                                    <select name="pet_id" id="petSelect" class="form-select bg-light">
+                                        <option value="">Select a pet...</option>
+                                        <% pets.forEach(p=> { %>
+                                            <option value="<%= p.id %>" data-owner="<%= p.owner_id %>"
+                                                <%=String(prefill.pet_id)===String(p.id) ? 'selected' : '' %>
+                                                style="display:none;"><%= p.name %>
+                                            </option>
+                                            <% }) %>
+                                    </select>
+                                    <div class="form-text">Select a customer first to see their pets.</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Category <span
+                                            class="text-danger">*</span></label>
+                                    <select name="category" class="form-select bg-light" required>
+                                        <option value="" disabled <%=!prefill.category ? 'selected' : '' %>>Select a
+                                            category...</option>
+                                        <% categories.forEach(cat=> { %>
+                                            <option value="<%= cat %>" <%=prefill.category===cat ? 'selected' : '' %>>
+                                                <%= cat %>
+                                            </option>
+                                            <% }) %>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Title /
+                                        Description <span class="text-danger">*</span></label>
+                                    <input type="text" id="invoiceTitle" name="title" class="form-control bg-light"
+                                        required placeholder="e.g. Annual Checkup & Vaccines"
+                                        value="<%= prefill.title || '' %>">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Extra Services
+                                        (Optional)</label>
+                                    <select id="extraServiceSelect" class="form-select bg-light"
+                                        onchange="calculateTotal()">
+                                        <option value="0" data-name="">None (+$0.00)</option>
+                                        <option value="15.00" data-name=" + Premium Pet Food">Premium Pet Food (+$15.00)
+                                        </option>
+                                        <option value="25.00" data-name=" + Basic Medication">Basic Medication (+$25.00)
+                                        </option>
+                                        <option value="40.00" data-name=" + Blood Test">Blood Test (+$40.00)</option>
+                                        <option value="30.00" data-name=" + Grooming / Bath">Grooming / Bath (+$30.00)
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold text-secondary small text-uppercase">Amount ($)
+                                        <span class="text-danger">*</span></label>
+                                    <input type="number" id="invoiceAmount" name="amount" class="form-control bg-light"
+                                        step="0.01" min="0.01" required placeholder="0.00"
+                                        value="<%= prefill.amount || '' %>">
+                                </div>
+
+                                <hr class="mb-4 text-muted">
+
+                                <div class="d-flex justify-content-end gap-2">
+                                    <a href="/appointments" class="btn btn-light border">Cancel</a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-send"></i> Issue Invoice & Notify Customer
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+    </div>
+
+    <script>
+        function filterPets(isInitialLoad) {
+            const ownerId = document.getElementById('customerSelect').value;
+            const petSelect = document.getElementById('petSelect');
+            const options = petSelect.options;
+
+            // Hide all pets first
+            for (let i = 1; i < options.length; i++) {
+                options[i].style.display = 'none';
+            }
+
+            // Show only the selected owner's pets
+            for (let i = 1; i < options.length; i++) {
+                if (options[i].getAttribute('data-owner') === ownerId) {
+                    options[i].style.display = 'block';
+                }
+            }
+
+            // Reset pet selection when customer changes manually, but NOT on initial load if pre-filled
+            if (!isInitialLoad) {
+                petSelect.value = "";
+            }
+        }
+
+        // --- NEW Extra Services Recalculation Script ---
+        let baseAmount = 0;
+        let baseTitle = "";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Trigger existing pet filter logic if a customer is pre-selected
+            if (document.getElementById('customerSelect').value) {
+                filterPets(true);
+            }
+
+            // Capture the initial base amount and title pre-filled from the appointment
+            const amountInput = document.getElementById('invoiceAmount');
+            const titleInput = document.getElementById('invoiceTitle');
+
+            if (amountInput && amountInput.value) {
+                baseAmount = parseFloat(amountInput.value) || 0;
+            }
+            if (titleInput && titleInput.value) {
+                baseTitle = titleInput.value;
+            }
+
+            // Set a listener to manually update baseAmount if the staff types in a new number directly
+            if (amountInput) {
+                amountInput.addEventListener('input', () => {
+                    const extraSelect = document.getElementById('extraServiceSelect');
+                    if (extraSelect && extraSelect.value === "0") {
+                        baseAmount = parseFloat(amountInput.value) || 0;
+                    }
+                });
+            }
+
+            if (titleInput) {
+                titleInput.addEventListener('input', () => {
+                    const extraSelect = document.getElementById('extraServiceSelect');
+                    if (extraSelect && extraSelect.value === "0") {
+                        baseTitle = titleInput.value;
+                    }
+                });
+            }
+        });
+
+        function calculateTotal() {
+            const extraSelect = document.getElementById('extraServiceSelect');
+            const amountInput = document.getElementById('invoiceAmount');
+            const titleInput = document.getElementById('invoiceTitle');
+
+            if (!extraSelect || !amountInput || !titleInput) return;
+
+            const extraPrice = parseFloat(extraSelect.value) || 0;
+            const extraName = extraSelect.options[extraSelect.selectedIndex].getAttribute('data-name');
+
+            // Recalculate amount
+            const newTotal = baseAmount + extraPrice;
+            amountInput.value = newTotal.toFixed(2);
+
+            // Append the extra service to the title
+            titleInput.value = baseTitle + extraName;
+        }
+    </script>
+</body>
+</html>

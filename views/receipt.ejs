@@ -1,0 +1,139 @@
+<%- include('partials/header') %>
+<style>
+    .receipt-container {
+        font-family: 'Courier New', Courier, monospace;
+        background: #fff;
+        max-width: 400px;
+        margin: 2rem auto;
+        padding: 2rem;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        border: 1px solid #eee;
+        position: relative;
+    }
+    .receipt-container::after {
+        content: "";
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background-size: 20px 20px;
+        background-image: radial-gradient(circle at 10px 10px, transparent 12px, #fff 13px);
+    }
+    .dashed-divider {
+        border-top: 1px dashed #ccc;
+        margin: 1rem 0;
+    }
+    .barcode {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 1.5rem;
+        letter-spacing: 5px;
+        text-align: center;
+        margin-top: 1rem;
+        font-weight: bold;
+    }
+    
+    .rating {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    .rating input {
+        display: none;
+    }
+    .rating label {
+        font-size: 2rem;
+        color: #ccc;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    .rating label:hover,
+    .rating label:hover ~ label,
+    .rating input:checked ~ label {
+        color: #ffc107;
+    }
+</style>
+<div class="app-shell">
+    <%- include('partials/customer-sidebar', { activePage: 'expenses' }) %>
+
+    <div class="app-main bg-light">
+        <div class="app-content d-flex flex-column align-items-center">
+
+            <div class="receipt-container text-dark">
+                <div class="text-center mb-3">
+                    <h4 class="fw-bold mb-0">PETCENTER CLINIC</h4>
+                    <small>123 Pet Lane, Animal City</small><br>
+                    <small>Tel: (555) 123-4567</small>
+                </div>
+                
+                <div class="dashed-divider"></div>
+                
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Date:</span>
+                    <span><%= new Date(invoice.created_at).toLocaleDateString() %></span>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Invoice #:</span>
+                    <span><%= String(invoice.id).padStart(6, '0') %></span>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Auth Code:</span>
+                    <span><%= Math.floor(100000 + Math.random() * 900000) %></span>
+                </div>
+                
+                <div class="dashed-divider"></div>
+                
+                <div class="fw-bold mb-2">PURCHASE DETAILS</div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span><%= invoice.title %></span>
+                    <span>$<%= Number(invoice.amount).toFixed(2) %></span>
+                </div>
+                <div class="d-flex justify-content-between mb-1 text-muted small">
+                    <span>Category: <%= invoice.category %></span>
+                    <span></span>
+                </div>
+                
+                <div class="dashed-divider"></div>
+                
+                <div class="d-flex justify-content-between fw-bold fs-5 mb-2">
+                    <span>TOTAL</span>
+                    <span>$<%= Number(invoice.amount).toFixed(2) %></span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>PAYMENT</span>
+                    <span>CREDIT CARD</span>
+                </div>
+                
+                <div class="dashed-divider"></div>
+                
+                <div class="text-center mt-4">
+                    <p class="mb-1">THANK YOU FOR YOUR BUSINESS!</p>
+                    <div class="barcode">||| |||| || | |||| |||</div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mt-4 mb-5" style="max-width: 500px; width: 100%;">
+                <div class="card-body p-4 text-center">
+                    <h5 class="fw-bold mb-3">How was your experience?</h5>
+                    <form action="/receipt/<%= invoice.id %>/review" method="POST">
+                        <div class="rating mb-3">
+                            <input type="radio" id="star5" name="rating" value="5" required /><label for="star5" class="bi bi-star-fill"></label>
+                            <input type="radio" id="star4" name="rating" value="4" /><label for="star4" class="bi bi-star-fill"></label>
+                            <input type="radio" id="star3" name="rating" value="3" /><label for="star3" class="bi bi-star-fill"></label>
+                            <input type="radio" id="star2" name="rating" value="2" /><label for="star2" class="bi bi-star-fill"></label>
+                            <input type="radio" id="star1" name="rating" value="1" /><label for="star1" class="bi bi-star-fill"></label>
+                        </div>
+                        <div class="mb-3">
+                            <textarea name="comment" class="form-control bg-light" rows="3" placeholder="Leave a comment (optional)..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Review & Finish</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

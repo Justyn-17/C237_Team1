@@ -42,14 +42,15 @@
                     </div>
                 <% } %>
                 
+                <% const currentTab = (typeof activeTab !== 'undefined' && activeTab) ? activeTab : 'customer'; %>
                 <!-- Tabs Navigation -->
                 <ul class="nav nav-tabs mb-4 border-0" id="loginTabs" role="tablist">
                     <li class="nav-item w-50 text-center" role="presentation">
                         <!-- Fixed data-bs-target and data-bs-toggle -->
-                        <button class="nav-link active w-100 fw-bold fs-5" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customer" type="button" role="tab" aria-controls="customer" aria-selected="true">Customer</button>
+                        <button class="nav-link <%= currentTab === 'customer' ? 'active' : '' %> w-100 fw-bold fs-5" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customer" type="button" role="tab" aria-controls="customer" aria-selected="<%= currentTab === 'customer' ? 'true' : 'false' %>">Customer</button>
                     </li>
                     <li class="nav-item w-50 text-center" role="presentation">
-                        <button class="nav-link w-100 fw-bold fs-5" id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff" type="button" role="tab" aria-controls="staff" aria-selected="false">Staff</button>
+                        <button class="nav-link <%= currentTab === 'staff' ? 'active' : '' %> w-100 fw-bold fs-5" id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff" type="button" role="tab" aria-controls="staff" aria-selected="<%= currentTab === 'staff' ? 'true' : 'false' %>">Staff</button>
                     </li>
                 </ul>
                 
@@ -57,7 +58,7 @@
                 <div class="tab-content" id="loginTabsContent">
                     
                     <!-- Customer Tab -->
-                    <div class="tab-pane fade show active" id="customer" role="tabpanel" aria-labelledby="customer-tab">
+                    <div class="tab-pane fade <%= currentTab === 'customer' ? 'show active' : '' %>" id="customer" role="tabpanel" aria-labelledby="customer-tab">
                         <!-- TODO(security): Add CSRF token for production -->
                         <form action="/login" method="POST">
                             <input type="hidden" name="expectedRole" value="customer">
@@ -82,7 +83,7 @@
                     </div>
                     
                     <!-- Staff Tab -->
-                    <div class="tab-pane fade" id="staff" role="tabpanel" aria-labelledby="staff-tab">
+                    <div class="tab-pane fade <%= currentTab === 'staff' ? 'show active' : '' %>" id="staff" role="tabpanel" aria-labelledby="staff-tab">
                         <!-- TODO(security): Add CSRF token for production -->
                         <form action="/login" method="POST">
                             <input type="hidden" name="expectedRole" value="staff">

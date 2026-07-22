@@ -13,6 +13,19 @@
             <p class="text-muted mb-0">Overview of clinic activity and quick access to your modules.</p>
           </div>
 
+          <% if (typeof remainingCodes !== 'undefined' && remainingCodes !== null && remainingCodes <= 2) { %>
+            <div class="alert alert-danger d-flex justify-content-between align-items-center shadow-sm" role="alert">
+                <div>
+                    <strong>Warning:</strong> You have <%= remainingCodes %> master recovery codes remaining. Please generate a new set to avoid losing access to your account.
+                </div>
+                <form action="/regenerate-recovery-codes" method="POST" class="m-0">
+                    <button type="submit" class="btn btn-outline-danger btn-sm fw-bold">
+                        Generate New Codes
+                    </button>
+                </form>
+            </div>
+          <% } %>
+
           <!--
                 Key Metrics
                 NOTE: the /staff-dashboard route in app.js currently does `res.render('staff')`
