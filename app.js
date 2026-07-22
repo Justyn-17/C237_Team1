@@ -1823,302 +1823,216 @@ app.post('/appointments/:id/cancel', (req, res) => {
 // Staff marks appointment as completed
 app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
     const appointmentId = req.params.id;
-    const vet_id = req.session.userId; // the logged-in vet
+    const vet_id = req.session.userId;
 
-    const sql = `
-        UPDATE appointments
-        SET status = 'completed'
-        WHERE id = ? AND vet_id = ?
-    `;
+    db.query("SELECT * FROM appointments WHERE id = ? AND vet_id = ?", [appointmentId, vet_id], (err, rows) => {
+        if (err || rows.length === 0) return res.status(500).send("Error fetching appointment.");
 
-    db.query(sql, [appointmentId, vet_id], (err, result) => {
-        if (err) {
-            console.error('Complete appointment error:', err);
-            return res.status(500).send("Could not mark appointment as completed.");
-        }
+        const appt = rows[0];
 
-        if (result.affectedRows === 0) {
-            return res.status(404).send("Appointment not found for this vet.");
-        }
+        db.query("UPDATE appointments SET status = 'completed' WHERE id = ?", [appointmentId], (err2) => {
+            if (err2) return res.status(500).send("Error updating appointment.");
 
-        res.redirect('/appointments');
+            const title = encodeURIComponent(`Vet Consultation - ${appt.reason || 'General Checkup'}`);
+            const category = encodeURIComponent('Vet Visit');
+            const amount = "50.00";
+
+            // Redirect to the invoice form, fully pre-filled
+            res.redirect(`/staff/invoices/new?owner_id=${appt.owner_id}&pet_id=${appt.pet_id}&title=${title}&category=${category}&amount=${amount}`);
+        });
     });
 });
 
 // ==========================================
-// EXPENSE TRACKING ROUTES
+// NOTIFICATIONS ROUTES
 // ==========================================
 
-// Fixed category list used by both the customer and staff expense views/forms
-const EXPENSE_CATEGORIES = [
-    'Food', 'Vet Visit', 'Medication', 'Grooming',
-    'Boarding', 'Insurance', 'Toys & Accessories', 'Other'
-];
+app.get('/notifications', requireRole('customer'), (req, res) => {
+    db.query("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC", [req.session.userId], (err, notifications) => {
+        if (err) return res.status(500).send("Database error");
+        res.render('notifications', { notifications });
+    });
+});
 
-// ---------- Customer: Expense log (list + totals + breakdown) ----------
+app.post('/notifications/:id/read', requireRole('customer'), (req, res) => {
+    db.query("UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?", [req.params.id, req.session.userId], (err) => {
+        res.redirect('/notifications');
+    });
+});
+
+app.post('/notifications/:id/delete', requireRole('customer'), (req, res) => {
+    db.query("DELETE FROM notifications WHERE id = ? AND user_id = ?", [req.params.id, req.session.userId], (err) => {
+        res.redirect('/notifications');
+    });
+});
+
+// ==========================================
+// INVOICING & EXPENSE TRACKING ROUTES
+// ==========================================
+const EXPENSE_CATEGORIES = ['Food', 'Vet Visit', 'Medication', 'Grooming', 'Boarding', 'Insurance', 'Toys & Accessories', 'Other'];
+
+// ---------- Staff: View & Create Invoices ----------
+app.get('/staff/invoices', requireRole('staff'), (req, res) => {
+    const sql = `
+        SELECT i.*, o.name AS owner_name, p.name AS pet_name 
+        FROM invoices i
+        LEFT JOIN users o ON i.owner_id = o.id
+        LEFT JOIN pets p ON i.pet_id = p.id
+        ORDER BY i.created_at DESC
+    `;
+    db.query(sql, (err, invoices) => {
+        if (err) return res.status(500).send("Database error");
+
+        const aggSql = `SELECT category, SUM(amount) as total FROM invoices WHERE status = 'paid' GROUP BY category`;
+        db.query(aggSql, (err2, aggData) => {
+            if (err2) return res.status(500).send("Database error");
+            res.render('staff-invoices', { invoices, aggData });
+        });
+    });
+});
+
+app.get('/staff/invoices/new', requireRole('staff'), (req, res) => {
+    const prefill = req.query || {};
+    db.query("SELECT id, name FROM users WHERE role = 'customer' AND status = 'active'", (err, customers) => {
+        if (err) return res.status(500).send("Database error");
+        db.query("SELECT id, name, owner_id FROM pets", (err2, pets) => {
+            if (err2) return res.status(500).send("Database error");
+            res.render('staff-invoice-new', { customers, pets, categories: EXPENSE_CATEGORIES, prefill });
+        });
+    });
+});
+
+app.post('/staff/invoices/new', requireRole('staff'), (req, res) => {
+    const { owner_id, pet_id, title, category, amount } = req.body;
+    const staff_id = req.session.userId;
+    const petIdValue = pet_id ? pet_id : null;
+
+    db.query(
+        "INSERT INTO invoices (owner_id, pet_id, staff_id, title, category, amount) VALUES (?, ?, ?, ?, ?, ?)",
+        [owner_id, petIdValue, staff_id, title, category, amount],
+        (err, result) => {
+            if (err) return res.status(500).send("Database error");
+
+            // Notify the customer
+            const msg = `New invoice received: ${title} for $${amount}.`;
+            db.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [owner_id, msg], () => {
+                res.redirect('/staff/invoices');
+            });
+        }
+    );
+});
+
+// ---------- Customer: Expenses & Pending Invoices ----------
 app.get('/expenses', requireRole('customer'), (req, res) => {
     const ownerId = req.session.userId;
 
-    // Optional filters: by pet and/or by category
-    const petFilter = req.query.pet_id && !isNaN(req.query.pet_id) ? req.query.pet_id : '';
-    const categoryFilter = EXPENSE_CATEGORIES.includes(req.query.category) ? req.query.category : '';
-
-    const where = ['e.owner_id = ?'];
-    const params = [ownerId];
-
-    if (petFilter) {
-        where.push('e.pet_id = ?');
-        params.push(petFilter);
-    }
-    if (categoryFilter) {
-        where.push('e.category = ?');
-        params.push(categoryFilter);
-    }
-
-    const listSql = `
-        SELECT e.*, p.name AS pet_name
-        FROM expenses e
-        LEFT JOIN pets p ON e.pet_id = p.id
-        WHERE ${where.join(' AND ')}
-        ORDER BY e.expense_date DESC, e.id DESC
-    `;
-
-    db.query(listSql, params, (err, expenses) => {
+    // 1. Get Pending Invoices
+    db.query("SELECT i.*, p.name AS pet_name FROM invoices i LEFT JOIN pets p ON i.pet_id = p.id WHERE i.owner_id = ? AND i.status = 'pending' ORDER BY i.created_at ASC", [ownerId], (err, pendingInvoices) => {
         if (err) {
-            console.error("Error fetching expenses:", err);
+            console.error("Error fetching pending invoices:", err);
             return res.status(500).send("Database error");
         }
 
-        // Totals + category breakdown always reflect ALL of the customer's
-        // expenses (unfiltered), so the summary cards stay stable while the
-        // table below can be filtered.
-        const summarySql = `
-            SELECT
-                COALESCE(SUM(amount), 0) AS totalAll,
-                COALESCE(SUM(CASE WHEN MONTH(expense_date) = MONTH(CURDATE())
-                                    AND YEAR(expense_date) = YEAR(CURDATE())
-                                   THEN amount ELSE 0 END), 0) AS totalThisMonth,
-                COUNT(*) AS entryCount
-            FROM expenses
-            WHERE owner_id = ?
-        `;
-
-        const breakdownSql = `
-            SELECT category, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-            FROM expenses
-            WHERE owner_id = ?
-            GROUP BY category
-            ORDER BY total DESC
-        `;
-
-        const monthlySql = `
-            SELECT DATE_FORMAT(expense_date, '%Y-%m') AS ym, COALESCE(SUM(amount), 0) AS total
-            FROM expenses
-            WHERE owner_id = ? AND expense_date >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
-            GROUP BY ym
-            ORDER BY ym ASC
-        `;
-
-        db.query(summarySql, [ownerId], (err2, summaryRows) => {
+        // 2. Get Expense Log (Auto-generated from paid invoices)
+        db.query("SELECT e.*, p.name AS pet_name FROM expenses e LEFT JOIN pets p ON e.pet_id = p.id WHERE e.owner_id = ? ORDER BY e.expense_date DESC", [ownerId], (err2, expenses) => {
             if (err2) {
-                console.error("Error fetching expense summary:", err2);
+                console.error("Error fetching expenses:", err2);
                 return res.status(500).send("Database error");
             }
 
-            db.query(breakdownSql, [ownerId], (err3, breakdownRows) => {
+            // 3. Get Aggregated Data for the Pie Chart (Current Month Spending)
+            const aggSql = `
+                SELECT category, COALESCE(SUM(amount), 0) as total 
+                FROM expenses 
+                WHERE owner_id = ? 
+                  AND MONTH(expense_date) = MONTH(CURDATE()) 
+                  AND YEAR(expense_date) = YEAR(CURDATE())
+                GROUP BY category
+            `;
+
+            db.query(aggSql, [ownerId], (err3, aggData) => {
                 if (err3) {
-                    console.error("Error fetching expense breakdown:", err3);
+                    console.error("Error fetching aggregated data:", err3);
                     return res.status(500).send("Database error");
                 }
 
-                db.query(monthlySql, [ownerId], (err4, monthlyRows) => {
-                    if (err4) {
-                        console.error("Error fetching monthly expense trend:", err4);
-                        return res.status(500).send("Database error");
+                // Render the view and pass pendingInvoices, expenses, AND aggData
+                res.render('expenses', {
+                    pendingInvoices,
+                    expenses,
+                    aggData
+                });
+            });
+        });
+    });
+});
+
+// ---------- Customer: Simulated Checkout ----------
+app.get('/checkout/:id', requireRole('customer'), (req, res) => {
+    const ownerId = req.session.userId;
+    db.query("SELECT * FROM invoices WHERE id = ? AND owner_id = ? AND status = 'pending'", [req.params.id, ownerId], (err, invoices) => {
+        if (err || invoices.length === 0) return res.redirect('/expenses');
+
+        // Fetch saved card details
+        db.query("SELECT saved_card_name, saved_card_last4, saved_card_expiry FROM users WHERE id = ?", [ownerId], (err2, users) => {
+            const savedCard = (users && users.length > 0) ? users[0] : null;
+            res.render('checkout', { invoice: invoices[0], savedCard });
+        });
+    });
+});
+
+app.post('/checkout/:id', requireRole('customer'), (req, res) => {
+    const invoiceId = req.params.id;
+    const ownerId = req.session.userId;
+    const { cardName, cardNumber, expiryDate, saveCard } = req.body;
+
+    // Verify invoice exists and is pending
+    db.query("SELECT * FROM invoices WHERE id = ? AND owner_id = ? AND status = 'pending'", [invoiceId, ownerId], (err, rows) => {
+        if (err || rows.length === 0) return res.status(404).send("Invoice not found or already paid.");
+
+        const invoice = rows[0];
+
+        // 1. Mark invoice as paid
+        db.query("UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ?", [invoiceId], (err2) => {
+            if (err2) return res.status(500).send("Database error updating invoice");
+
+            // 2. Auto-insert into expenses log
+            const insertExpense = `INSERT INTO expenses (owner_id, pet_id, category, description, amount, expense_date) VALUES (?, ?, ?, ?, ?, CURDATE())`;
+            db.query(insertExpense, [ownerId, invoice.pet_id, invoice.category, invoice.title, invoice.amount], (err3) => {
+                if (err3) return res.status(500).send("Database error creating expense");
+
+                // 3. Save the card if requested
+                if (saveCard === 'on' && cardNumber) {
+                    let last4 = cardNumber;
+                    // Extract last 4 whether it's masked or raw
+                    if (cardNumber.includes('•')) {
+                        last4 = cardNumber.slice(-4);
+                    } else {
+                        last4 = cardNumber.replace(/\D/g, '').slice(-4);
                     }
+                    db.query("UPDATE users SET saved_card_name = ?, saved_card_last4 = ?, saved_card_expiry = ? WHERE id = ?", [cardName, last4, expiryDate, ownerId]);
+                }
 
-                    db.query("SELECT id, name FROM pets WHERE owner_id = ?", [ownerId], (err5, pets) => {
-                        if (err5) {
-                            console.error("Error fetching pets for expense filter:", err5);
-                            return res.status(500).send("Database error");
-                        }
-
-                        const topCategory = breakdownRows.length > 0 ? breakdownRows[0].category : null;
-
-                        res.render('expenses', {
-                            expenses,
-                            summary: summaryRows[0],
-                            breakdown: breakdownRows,
-                            monthly: monthlyRows,
-                            pets,
-                            categories: EXPENSE_CATEGORIES,
-                            petFilter,
-                            categoryFilter,
-                            topCategory
-                        });
-                    });
-                });
+                // 4. Redirect to Receiptify page
+                res.redirect(`/receipt/${invoiceId}`);
             });
         });
     });
 });
 
-// ---------- Customer: Add expense ----------
-app.get('/expenses/add', requireRole('customer'), (req, res) => {
-    db.query("SELECT id, name FROM pets WHERE owner_id = ?", [req.session.userId], (err, pets) => {
-        if (err) {
-            console.error("Error fetching pets:", err);
-            return res.status(500).send("Database error");
-        }
-
-        res.render('addExpense', {
-            pets,
-            categories: EXPENSE_CATEGORIES
-        });
+// ---------- Customer: Post-Payment Receipt & Review ----------
+app.get('/receipt/:id', requireRole('customer'), (req, res) => {
+    db.query("SELECT * FROM invoices WHERE id = ? AND owner_id = ? AND status = 'paid'", [req.params.id, req.session.userId], (err, rows) => {
+        if (err || rows.length === 0) return res.redirect('/expenses');
+        res.render('receipt', { invoice: rows[0] });
     });
 });
 
-app.post('/expenses/add', requireRole('customer'), (req, res) => {
-    const { pet_id, category, description, amount, expense_date } = req.body;
-
-    if (!category || !amount || !expense_date) {
-        return res.status(400).send("Category, amount and date are required. <a href='/expenses/add'>Go back</a>");
-    }
-    if (!EXPENSE_CATEGORIES.includes(category)) {
-        return res.status(400).send("Invalid category. <a href='/expenses/add'>Go back</a>");
-    }
-    if (isNaN(amount) || Number(amount) <= 0) {
-        return res.status(400).send("Amount must be a positive number. <a href='/expenses/add'>Go back</a>");
-    }
-
-    // pet_id is optional (e.g. a household supply purchase not tied to one pet).
-    // When provided, it must belong to the logged-in customer.
-    const petIdValue = pet_id ? pet_id : null;
-
-    const insertExpense = () => {
-        const sql = `
-            INSERT INTO expenses (owner_id, pet_id, category, description, amount, expense_date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `;
-        db.query(
-            sql,
-            [req.session.userId, petIdValue, category, description || null, amount, expense_date],
-            (err, result) => {
-                if (err) {
-                    console.error("Error adding expense:", err);
-                    return res.status(500).send("Database error");
-                }
-                res.redirect('/expenses');
-            }
-        );
-    };
-
-    if (petIdValue) {
-        db.query("SELECT id FROM pets WHERE id = ? AND owner_id = ?", [petIdValue, req.session.userId], (err, rows) => {
-            if (err) {
-                console.error("Error validating pet ownership:", err);
-                return res.status(500).send("Database error");
-            }
-            if (rows.length === 0) {
-                return res.status(400).send("Invalid pet selected. <a href='/expenses/add'>Go back</a>");
-            }
-            insertExpense();
-        });
-    } else {
-        insertExpense();
-    }
-});
-
-// ---------- Customer: Edit expense ----------
-app.get('/expenses/edit/:id', requireRole('customer'), (req, res) => {
-    const expenseId = req.params.id;
-
-    db.query(
-        "SELECT * FROM expenses WHERE id = ? AND owner_id = ?",
-        [expenseId, req.session.userId],
-        (err, rows) => {
-            if (err) {
-                console.error("Error fetching expense:", err);
-                return res.status(500).send("Database error");
-            }
-            if (rows.length === 0) {
-                return res.status(404).send("Expense not found. <a href='/expenses'>Go back</a>");
-            }
-
-            db.query("SELECT id, name FROM pets WHERE owner_id = ?", [req.session.userId], (err2, pets) => {
-                if (err2) {
-                    console.error("Error fetching pets:", err2);
-                    return res.status(500).send("Database error");
-                }
-
-                res.render('editExpense', {
-                    expense: rows[0],
-                    pets,
-                    categories: EXPENSE_CATEGORIES
-                });
-            });
-        }
-    );
-});
-
-app.post('/expenses/edit/:id', requireRole('customer'), (req, res) => {
-    const expenseId = req.params.id;
-    const { pet_id, category, description, amount, expense_date } = req.body;
-
-    if (!category || !amount || !expense_date) {
-        return res.status(400).send("Category, amount and date are required. <a href='/expenses/edit/" + expenseId + "'>Go back</a>");
-    }
-    if (!EXPENSE_CATEGORIES.includes(category)) {
-        return res.status(400).send("Invalid category. <a href='/expenses/edit/" + expenseId + "'>Go back</a>");
-    }
-    if (isNaN(amount) || Number(amount) <= 0) {
-        return res.status(400).send("Amount must be a positive number. <a href='/expenses/edit/" + expenseId + "'>Go back</a>");
-    }
-
-    const petIdValue = pet_id ? pet_id : null;
-
-    // Guard: the expense must belong to this customer, and if a pet is chosen
-    // it must also belong to this customer.
-    const sql = `
-        UPDATE expenses
-        SET pet_id = ?, category = ?, description = ?, amount = ?, expense_date = ?
-        WHERE id = ? AND owner_id = ?
-          AND (? IS NULL OR ? IN (SELECT id FROM pets WHERE owner_id = ?))
-    `;
-
-    db.query(
-        sql,
-        [petIdValue, category, description || null, amount, expense_date,
-            expenseId, req.session.userId,
-            petIdValue, petIdValue, req.session.userId],
-        (err, result) => {
-            if (err) {
-                console.error("Error updating expense:", err);
-                return res.status(500).send("Database error");
-            }
-            if (result.affectedRows === 0) {
-                return res.status(404).send("Expense not found or invalid pet selected. <a href='/expenses'>Go back</a>");
-            }
-            res.redirect('/expenses');
-        }
-    );
-});
-
-// ---------- Customer: Delete expense ----------
-app.post('/expenses/delete/:id', requireRole('customer'), (req, res) => {
-    const expenseId = req.params.id;
-
-    db.query(
-        "DELETE FROM expenses WHERE id = ? AND owner_id = ?",
-        [expenseId, req.session.userId],
-        (err) => {
-            if (err) {
-                console.error("Error deleting expense:", err);
-                return res.status(500).send("Database error");
-            }
-            res.redirect('/expenses');
-        }
-    );
+app.post('/receipt/:id/review', requireRole('customer'), (req, res) => {
+    const { rating, comment } = req.body;
+    db.query("INSERT INTO reviews (invoice_id, user_id, rating, comment) VALUES (?, ?, ?, ?)", [req.params.id, req.session.userId, rating, comment], (err) => {
+        res.redirect('/expenses');
+    });
 });
 
 // ---------- Staff/Admin: Clinic-wide expense log + pie chart breakdown ----------
