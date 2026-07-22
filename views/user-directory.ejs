@@ -149,7 +149,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="staffTableBody">
-                                        <% const staffUsers = users.filter(u => u.role === 'staff' && u.status !== 'deleted'); %>
+                                        <% const staffUsers = users.filter(u => (u.role === 'staff' || u.role === 'admin') && u.status !== 'deleted'); %>
                                         <% staffUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
@@ -163,7 +163,13 @@
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
-                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold shadow-sm" style="background-color: #0d9488; color: white;">Staff</span>
+                                                    <% if (user.role === 'admin') { %>
+                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                    <% } else if (user.role === 'staff') { %>
+                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                    <% } else { %>
+                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                    <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.requires_password_reset) { %>
@@ -213,7 +219,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="customersTableBody">
-                                        <% const customerUsers = users.filter(u => u.role !== 'staff' && u.status !== 'deleted'); %>
+                                        <% const customerUsers = users.filter(u => u.role === 'customer' && u.status !== 'deleted'); %>
                                         <% customerUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
@@ -235,7 +241,13 @@
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
-                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold text-dark shadow-sm" style="background-color: #e2e8f0;">Customer</span>
+                                                    <% if (user.role === 'admin') { %>
+                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                    <% } else if (user.role === 'staff') { %>
+                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                    <% } else { %>
+                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                    <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.status === 'deletion_requested') { %>

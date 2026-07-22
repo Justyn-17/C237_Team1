@@ -103,6 +103,9 @@ app.use((req, res, next) => {
 
 // Role-based access control middleware
 const requireRole = (role) => (req, res, next) => {
+    if (role === 'staff' && req.session.role === 'admin') {
+        return next();
+    }
     if (req.session.role !== role) {
         return res.redirect('/login');
     }
