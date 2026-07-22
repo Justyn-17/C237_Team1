@@ -43,16 +43,85 @@
       </div>
 
       <% if (role === 'staff') { %>
-        <% var currentStatus = (typeof statusFilter !== 'undefined') ? statusFilter : ''; %>
-        <div class="btn-group mb-3" role="group" aria-label="Filter by status">
-          <a href="/appointments"
-             class="btn btn-sm <%= currentStatus === '' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
-          <a href="/appointments?status=booked"
-             class="btn btn-sm <%= currentStatus === 'booked' ? 'btn-primary' : 'btn-outline-primary' %>">Booked</a>
-          <a href="/appointments?status=completed"
-             class="btn btn-sm <%= currentStatus === 'completed' ? 'btn-primary' : 'btn-outline-primary' %>">Completed</a>
-          <a href="/appointments?status=cancelled"
-             class="btn btn-sm <%= currentStatus === 'cancelled' ? 'btn-primary' : 'btn-outline-primary' %>">Cancelled</a>
+        <%
+          var currentStatus = (typeof statusFilter !== 'undefined') ? statusFilter : '';
+          var currentRange  = (typeof rangeFilter  !== 'undefined') ? rangeFilter  : '';
+          var currentFrom   = (typeof fromDate     !== 'undefined') ? fromDate     : '';
+          var currentTo     = (typeof toDate       !== 'undefined') ? toDate       : '';
+          var usingDates    = !!(currentFrom || currentTo);
+
+          // Keep the status choice when switching date presets, and vice versa.
+          var statusQs = currentStatus ? 'status=' + currentStatus : '';
+          var dateQs   = usingDates
+            ? [currentFrom ? 'from=' + currentFrom : '', currentTo ? 'to=' + currentTo : ''].filter(Boolean).join('&')
+            : (currentRange ? 'range=' + currentRange : '');
+          var link = function (parts) {
+            var qs = parts.filter(Boolean).join('&');
+            return '/appointments' + (qs ? '?' + qs : '');
+          };
+        %>
+
+        <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+
+          <div>
+            <div class="text-muted small fw-semibold mb-1">Status</div>
+            <div class="btn-group" role="group" aria-label="Filter by status">
+              <a href="<%= link([dateQs]) %>"
+                 class="btn btn-sm <%= currentStatus === '' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+              <a href="<%= link(['status=booked', dateQs]) %>"
+                 class="btn btn-sm <%= currentStatus === 'booked' ? 'btn-primary' : 'btn-outline-primary' %>">Booked</a>
+              <a href="<%= link(['status=completed', dateQs]) %>"
+                 class="btn btn-sm <%= currentStatus === 'completed' ? 'btn-primary' : 'btn-outline-primary' %>">Completed</a>
+              <a href="<%= link(['status=cancelled', dateQs]) %>"
+                 class="btn btn-sm <%= currentStatus === 'cancelled' ? 'btn-primary' : 'btn-outline-primary' %>">Cancelled</a>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-muted small fw-semibold mb-1">Date</div>
+            <div class="btn-group" role="group" aria-label="Filter by date">
+              <a href="<%= link([statusQs]) %>"
+                 class="btn btn-sm <%= (!currentRange && !usingDates) ? 'btn-primary' : 'btn-outline-primary' %>">Any date</a>
+              <a href="<%= link([statusQs, 'range=today']) %>"
+                 class="btn btn-sm <%= currentRange === 'today' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Today</a>
+              <a href="<%= link([statusQs, 'range=week']) %>"
+                 class="btn btn-sm <%= currentRange === 'week' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Next 7 days</a>
+              <a href="<%= link([statusQs, 'range=upcoming']) %>"
+                 class="btn btn-sm <%= currentRange === 'upcoming' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Upcoming</a>
+              <a href="<%= link([statusQs, 'range=past']) %>"
+                 class="btn btn-sm <%= currentRange === 'past' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Past</a>
+            </div>
+          </div>
+
+          <!-- Explicit date range; overrides the quick presets above -->
+          <form action="/appointments" method="GET" class="d-flex align-items-end gap-2">
+            <% if (currentStatus) { %>
+              <input type="hidden" name="status" value="<%= currentStatus %>">
+            <% } %>
+            <div>
+              <label class="text-muted small fw-semibold mb-1 d-block" for="fromDate">From</label>
+              <input type="date" id="fromDate" name="from" value="<%= currentFrom %>"
+                     class="form-control form-control-sm">
+            </div>
+            <div>
+              <label class="text-muted small fw-semibold mb-1 d-block" for="toDate">To</label>
+              <input type="date" id="toDate" name="to" value="<%= currentTo %>"
+                     class="form-control form-control-sm">
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Apply</button>
+            <% if (usingDates) { %>
+              <a href="<%= link([statusQs]) %>" class="btn btn-sm btn-outline-secondary rounded-pill px-3">Clear</a>
+            <% } %>
+          </form>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small">
+            Showing <strong><%= appointments ? appointments.length : 0 %></strong>
+            appointment<%= (appointments && appointments.length === 1) ? '' : 's' %><%
+              %><%= currentStatus ? ' · ' + currentStatus : '' %><%
+              %><% if (usingDates) { %> · <%= currentFrom || 'any' %> to <%= currentTo || 'any' %><% } %>
+          </span>
         </div>
       <% } %>
 
@@ -76,7 +145,13 @@
             <% if (appointments && appointments.length) { %>
               <% appointments.forEach(a => { %>
                 <tr>
-                  <td><%= a.pet_name || ('#' + a.pet_id) %></td>
+                  <td>
+                    <% if (a.pet_name) { %>
+                      <%= a.pet_name %>
+                    <% } else { %>
+                      <span class="text-muted fst-italic">Deleted pet</span>
+                    <% } %>
+                  </td>
                   <% if (admin) { %>
                     <td><%= a.owner_name || '-' %></td>
                     <td><%= a.vet_name || '-' %></td>
@@ -126,7 +201,15 @@
             <% } else { %>
               <tr>
                 <td colspan="<%= admin ? 6 : 5 %>" class="text-center text-muted py-4">
+                  <% if (role === 'staff' && (statusFilter || rangeFilter || fromDate || toDate)) { %>
+                    No appointments match these filters.
+                    <br/>
+                    <a href="/appointments" class="btn btn-outline-primary btn-sm mt-2 rounded-pill px-3">
+                      Clear filters
+                    </a>
+                  <% } else { %>
                   No appointments found yet.
+                  <% } %>
                   <% if (role === 'customer') { %>
                     <br/>
                     <a href="/appointments/new" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
