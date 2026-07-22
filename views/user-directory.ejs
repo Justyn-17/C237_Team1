@@ -140,16 +140,16 @@
                         
                         <!-- Staff Tab Pane -->
                         <div class="tab-pane fade <%= !isCustomersTab ? 'show active' : '' %>" id="staff-pane" role="tabpanel" aria-labelledby="staff-tab" tabindex="0">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle" style="table-layout: fixed;">
+                            <div class="table-responsive" style="overflow-x: auto;">
+                                <table class="table table-hover align-middle mb-0">
                                     <thead style="background-color: #f8fafc;">
                                         <tr>
-                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start" style="width: 25%;">Name</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start" style="width: 15%;">Name</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 15%;">Username</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 15%;">Phone</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 10%;">Role</th>
-                                            <th scope="col" class="fw-semibold text-secondary py-3" style="width: 10%;">Status</th>
-                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end text-end" style="width: 25%;">Actions</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3" style="width: 20%; min-width: 160px;">Status</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end" style="width: 25%; min-width: 260px; text-align: right;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="staffTableBody">
@@ -157,12 +157,7 @@
                                         <% staffUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
-                                                    <div class="d-flex flex-column align-items-start">
-                                                        <span class="fw-bold mb-1 searchable-name" style="color: #1e293b;"><%= user.name %></span>
-                                                        <% if (user.password_reset_requested) { %>
-                                                            <span class="badge bg-warning text-dark request-tag text-wrap text-start mt-1" style="max-width: 150px;">Password Reset Request</span>
-                                                        <% } %>
-                                                    </div>
+                                                    <span class="fw-bold searchable-name" style="color: #1e293b;"><%= user.name %></span>
                                                 </td>
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
@@ -176,23 +171,32 @@
                                                     <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle text-nowrap">
+                                                  <div class="d-flex flex-column align-items-start gap-1">
                                                     <% if (user.requires_password_reset) { %>
                                                         <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> Pending Setup</span>
                                                     <% } else { %>
                                                         <span class="badge bg-success"><i class="bi bi-check-circle"></i> Active</span>
                                                     <% } %>
+                                                    <% if (user.password_reset_requested) { %>
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-key-fill me-1"></i>Reset Req.</span>
+                                                    <% } %>
+                                                  </div>
                                                 </td>
                                                 <td class="py-3 align-middle text-nowrap text-end">
                                                     <% if (user.username !== 'admin') { %>
-                                                        <div class="d-flex justify-content-end align-items-center gap-2">
+                                                        <div class="d-flex align-items-center justify-content-end gap-1 gap-xl-2 flex-nowrap">
                                                             <% if (typeof currentUser !== 'undefined' && currentUser.username === 'admin') { %>
                                                                 <form action="/admin/delete-staff/<%= user.id %>" method="POST" onsubmit="return confirm('Are you sure you want to delete this staff member?');" class="m-0 p-0">
-                                                                    <button type="submit" class="btn btn-sm btn-outline-danger px-3 text-nowrap">Delete</button>
+                                                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2 text-nowrap">Delete</button>
                                                                 </form>
                                                             <% } %>
                                                             <% if (isSuperAdmin || user.role === 'customer') { %>
-                                                              <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
-                                                                <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3 text-nowrap">Reset Code</button>
+                                                              <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                                <% if (user.password_reset_requested) { %>
+                                                                  <button type="submit" class="btn btn-warning btn-sm py-1 px-2 fw-bold text-nowrap">Approve Reset</button>
+                                                                <% } else { %>
+                                                                  <button type="submit" class="btn btn-outline-warning btn-sm py-1 px-2 text-dark text-nowrap">Reset Code</button>
+                                                                <% } %>
                                                               </form>
                                                             <% } %>
                                                         </div>
@@ -210,16 +214,16 @@
 
                         <!-- Customers Tab Pane -->
                         <div class="tab-pane fade <%= isCustomersTab ? 'show active' : '' %>" id="customers-pane" role="tabpanel" aria-labelledby="customers-tab" tabindex="0">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle" style="table-layout: fixed;">
+                            <div class="table-responsive" style="overflow-x: auto;">
+                                <table class="table table-hover align-middle mb-0">
                                     <thead style="background-color: #f8fafc;">
                                         <tr>
-                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start" style="width: 25%;">Name</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-start" style="width: 15%;">Name</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 15%;">Username</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 15%;">Phone</th>
                                             <th scope="col" class="fw-semibold text-secondary py-3" style="width: 10%;">Role</th>
-                                            <th scope="col" class="fw-semibold text-secondary py-3" style="width: 10%;">Status</th>
-                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end text-end" style="width: 25%;">Actions</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3" style="width: 20%; min-width: 160px;">Status</th>
+                                            <th scope="col" class="fw-semibold text-secondary py-3 rounded-end" style="width: 25%; min-width: 260px; text-align: right;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="customersTableBody">
@@ -227,20 +231,7 @@
                                         <% customerUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
-                                                    <div class="d-flex flex-column align-items-start">
-                                                        <span class="fw-bold mb-1 searchable-name" style="color: #1e293b;"><%= user.name %></span>
-                                                        <% if (user.status === 'deletion_requested') { %>
-                                                            <span class="badge bg-warning text-dark text-wrap d-inline-flex align-items-center gap-2 mt-1" style="max-width: 150px;">
-                                                              Account Delete Request
-                                                              <form action="/cancel-deletion-request/<%= user.id %>" method="POST" class="m-0 p-0 d-inline-flex">
-                                                                <button type="submit" class="btn-close" style="font-size: 0.5rem;" aria-label="Cancel Request" title="Cancel Request"></button>
-                                                              </form>
-                                                            </span>
-                                                        <% } %>
-                                                        <% if (user.password_reset_requested) { %>
-                                                            <span class="badge bg-warning text-dark request-tag text-wrap text-start mt-1" style="max-width: 150px;">Password Reset Request</span>
-                                                        <% } %>
-                                                    </div>
+                                                    <span class="fw-bold searchable-name" style="color: #1e293b;"><%= user.name %></span>
                                                 </td>
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
@@ -254,29 +245,49 @@
                                                     <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle text-nowrap">
+                                                  <div class="d-flex flex-column align-items-start gap-1">
                                                     <% if (user.status === 'deletion_requested') { %>
-                                                      <span class="badge bg-danger">Pending Deletion</span>
+                                                      <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Pending Deletion</span>
                                                     <% } else { %>
                                                       <span class="badge bg-success"><i class="bi bi-check-circle"></i> Active</span>
                                                     <% } %>
+                                                    <% if (user.password_reset_requested) { %>
+                                                      <span class="badge bg-warning text-dark"><i class="bi bi-key-fill me-1"></i>Reset Req.</span>
+                                                    <% } %>
+                                                  </div>
                                                 </td>
                                                 <td class="py-3 align-middle text-nowrap text-end">
                                                     <% if (user.username !== 'admin') { %>
-                                                        <div class="d-flex justify-content-end align-items-center gap-2">
+                                                        <div class="d-flex align-items-center justify-content-end gap-1 gap-xl-2 flex-nowrap">
                                                           <% if (isSuperAdmin) { %>
                                                             <!-- Super Admin sees the direct Delete button -->
-                                                            <form action="/admin/delete-customer/<%= user.id %>" method="POST" class="m-0">
-                                                              <button type="submit" class="btn btn-sm btn-outline-danger px-3 text-nowrap">Delete</button>
+                                                            <form action="/admin/delete-customer/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                              <% if (user.status === 'deletion_requested') { %>
+                                                                <button type="submit" class="btn btn-danger btn-sm py-1 px-2 fw-bold text-nowrap">Confirm Deletion</button>
+                                                              <% } else { %>
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2 text-nowrap">Delete</button>
+                                                              <% } %>
                                                             </form>
                                                           <% } else if (user.status === 'deletion_requested') { %>
                                                             <!-- Standard Staff sees Approve Deletion ONLY if requested -->
-                                                            <form action="/staff/approve-deletion/<%= user.id %>" method="POST" class="m-0">
-                                                              <button type="submit" class="btn btn-sm btn-danger px-3 text-nowrap">Approve Deletion</button>
+                                                            <form action="/staff/approve-deletion/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                              <button type="submit" class="btn btn-danger btn-sm py-1 px-2 fw-bold text-nowrap">Confirm Deletion</button>
                                                             </form>
                                                           <% } %>
+                                                          
+                                                          <% if (user.status === 'deletion_requested') { %>
+                                                            <form action="/cancel-deletion-request/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                              <button type="submit" class="btn btn-outline-secondary btn-sm py-1 px-2 text-nowrap" title="Cancel Request">Cancel</button>
+                                                            </form>
+                                                          <% } %>
+
                                                           <% if (isSuperAdmin || user.role === 'customer') { %>
-                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
-                                                              <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3 text-nowrap">Reset Code</button>
+                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                              <% if (user.password_reset_requested) { %>
+                                                                <button type="submit" class="btn btn-warning btn-sm py-1 px-2 fw-bold text-nowrap">Approve Reset</button>
+                                                              <% } else { %>
+                                                                <button type="submit" class="btn btn-outline-warning btn-sm py-1 px-2 text-dark text-nowrap">Reset Code</button>
+                                                              <% } %>
                                                             </form>
                                                           <% } %>
                                                         </div>

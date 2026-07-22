@@ -113,29 +113,54 @@ const requireRole = (role) => (req, res, next) => {
 };
 
 // DB connection (Azure MySQL)
-const db = mysql.createConnection({
+const dbConfig = {
     host: process.env.DB_HOST || 'c237-leonard-mysql.mysql.database.azure.com',
     user: process.env.DB_USER || 'c237_023',
     password: process.env.DB_PASSWORD || 'c237023@2026!',
     database: process.env.DB_NAME || 'c237_023_team1_petcenter',
     ssl: { rejectUnauthorized: false }
-});
+};
 
-db.connect((err) => {
-    if (err) {
-        console.error('Database connection failed:', err);
-        return;
-    }
-    console.log('Connected to Azure MySQL database.');
-});
+let db;
+const util = require('util');
+let queryAsync;
+let beginTransactionAsync;
+let commitAsync;
+let rollbackAsync;
+
+function handleDisconnect() {
+    db = mysql.createConnection(dbConfig);
+    
+    // Bind the async transaction helpers to the new connection
+    queryAsync = util.promisify(db.query).bind(db);
+    beginTransactionAsync = util.promisify(db.beginTransaction).bind(db);
+    commitAsync = util.promisify(db.commit).bind(db);
+    rollbackAsync = util.promisify(db.rollback).bind(db);
+
+    db.connect((err) => {
+        if (err) {
+            console.error('Database connection failed:', err);
+            setTimeout(handleDisconnect, 2000);
+        } else {
+            console.log('Connected to Azure MySQL database.');
+        }
+    });
+
+    // Catch database errors to prevent the app from crashing on idle timeouts
+    db.on('error', (err) => {
+        console.error('Database connection error:', err);
+        if(err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+            console.log("Database connection dropped. Auto-reconnecting...");
+            handleDisconnect();
+        } else {
+            throw err;
+        }
+    });
+}
+
+handleDisconnect();
 
 // --- MASTER RECOVERY CODES HELPER ---
-const util = require('util');
-const queryAsync = util.promisify(db.query).bind(db);
-const beginTransactionAsync = util.promisify(db.beginTransaction).bind(db);
-const commitAsync = util.promisify(db.commit).bind(db);
-const rollbackAsync = util.promisify(db.rollback).bind(db);
-
 function getSecureRandomChar() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let r = crypto.randomBytes(1)[0];
