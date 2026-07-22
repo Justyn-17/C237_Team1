@@ -129,6 +129,26 @@ db.connect((err) => {
     console.log('Connected to Azure MySQL database.');
 });
 
+// --- MASTER RECOVERY CODES HELPER ---
+const util = require('util');
+const queryAsync = util.promisify(db.query).bind(db);
+const beginTransactionAsync = util.promisify(db.beginTransaction).bind(db);
+const commitAsync = util.promisify(db.commit).bind(db);
+const rollbackAsync = util.promisify(db.rollback).bind(db);
+
+function getSecureRandomChar() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let r = crypto.randomBytes(1)[0];
+    while (r >= 252) r = crypto.randomBytes(1)[0];
+    return chars[r % 36];
+}
+
+function generateSecureRecoveryCode() {
+    let code = '';
+    for (let i = 0; i < 12; i++) code += getSecureRandomChar();
+    return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}`;
+}
+
 // Global Session Invalidation Middleware
 app.use((req, res, next) => {
     if (req.session && req.session.username) {
@@ -219,17 +239,17 @@ app.post('/login', async (req, res) => {
         }
 
         if (results.length === 0) {
-            return res.render('login', { error: 'Invalid username or password.' });
+            return res.render('login', { error: 'Invalid username or password.', activeTab: expectedRole });
         }
 
         const user = results[0];
 
         // Boundary Check: Ensure the user's role matches the portal they are trying to log in from
         if (expectedRole === 'staff' && (user.role !== 'staff' && user.role !== 'admin')) {
-            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+            return res.render('login', { error: 'Please use the correct portal for your account type.', activeTab: expectedRole });
         }
         if (expectedRole === 'customer' && user.role !== 'customer') {
-            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+            return res.render('login', { error: 'Please use the correct portal for your account type.', activeTab: expectedRole });
         }
 
         try {
@@ -265,7 +285,7 @@ app.post('/login', async (req, res) => {
                     });
                 });
             } else {
-                return res.render('login', { error: 'Invalid username or password.' });
+                return res.render('login', { error: 'Invalid username or password.', activeTab: expectedRole });
             }
         } catch (error) {
             console.error("Error during password comparison:", error);
@@ -478,13 +498,30 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
                             count: speciesMap[label]
                         })).sort((a, b) => b.count - a.count);
 
-                        res.render('staff', {
-                            totalPets: petRows[0].count,
-                            appointmentsToday: apptRows[0].count,
-                            appointments: recentRows,
-                            monthlyAppointments: monthlyAppointments,
-                            speciesBreakdown: speciesBreakdown
-                        });
+                        // Check remaining recovery codes if admin
+                        if (isAdmin) {
+                            db.query('SELECT COUNT(*) as count FROM recovery_codes WHERE user_id = (SELECT id FROM users WHERE username = ?) AND is_used = 0', ['admin'], (err6, codeRows) => {
+                                let remainingCodes = 0;
+                                if (!err6 && codeRows.length > 0) remainingCodes = codeRows[0].count;
+                                res.render('staff', {
+                                    totalPets: petRows[0].count,
+                                    appointmentsToday: apptRows[0].count,
+                                    appointments: recentRows,
+                                    monthlyAppointments: monthlyAppointments,
+                                    speciesBreakdown: speciesBreakdown,
+                                    remainingCodes: remainingCodes
+                                });
+                            });
+                        } else {
+                            res.render('staff', {
+                                totalPets: petRows[0].count,
+                                appointmentsToday: apptRows[0].count,
+                                appointments: recentRows,
+                                monthlyAppointments: monthlyAppointments,
+                                speciesBreakdown: speciesBreakdown,
+                                remainingCodes: null
+                            });
+                        }
                     });
                 });
             });
@@ -842,7 +879,7 @@ app.get('/forgot-password', (req, res) => {
 app.post('/forgot-password', (req, res) => {
     const { username } = req.body;
     if (username === 'admin') {
-        return res.render('forgot-password', { error: 'Action not allowed for this user.' });
+        return res.redirect('/recover-password');
     }
     db.query("SELECT * FROM users WHERE username = ?", [username], (err, results) => {
         if (err || results.length === 0) {
@@ -859,9 +896,9 @@ app.post('/forgot-password/verify', async (req, res) => {
 
         const user = results[0];
 
-        // Prevent admin reset
+        // Prevent standard reset for admin, route to master recovery
         if (user.username === 'admin') {
-            return res.render('forgot-password-verify', { user, error: 'Action not allowed for this user.' });
+            return res.redirect('/recover-password');
         }
 
         try {
@@ -922,7 +959,8 @@ app.post('/staff/reset-user/:id', async (req, res) => {
 
                 db.query("SELECT * FROM users", (err, users) => {
                     if (err) return res.status(500).send("Database error");
-                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username });
+                    const activeTab = targetUser.role === 'customer' ? 'customers' : 'staff';
+                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username, activeTab });
                 });
             });
         } catch (error) {
@@ -2146,6 +2184,165 @@ app.post('/staff/expenses/delete/:id', requireRole('staff'), (req, res) => {
         }
         res.redirect('/staff/expenses');
     });
+});
+
+// ---------- Master Recovery Codes Routes ----------
+app.post('/generate-recovery-codes', async (req, res) => {
+    try {
+        if (!req.session || req.session.role !== 'admin' || req.session.username !== 'admin') {
+            return res.status(403).send('Forbidden: Admin access required.');
+        }
+        const users = await queryAsync('SELECT id FROM users WHERE username = ?', [req.session.username]);
+        if (users.length === 0) return res.status(400).send('Admin not found');
+        const adminId = users[0].id;
+
+        const plainCodes = [];
+        const saltRounds = 12;
+
+        for (let i = 0; i < 5; i++) {
+            const code = generateSecureRecoveryCode();
+            plainCodes.push(code);
+            const hashedCode = await bcrypt.hash(code, saltRounds);
+            await queryAsync('INSERT INTO recovery_codes (user_id, code, is_used) VALUES (?, ?, 0)', [adminId, hashedCode]);
+        }
+
+        res.render('admin/recovery-codes-generated', { codes: plainCodes });
+    } catch (err) {
+        console.error('Error generating recovery codes:', err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.get('/recover-password', (req, res) => {
+    res.render('recover-password');
+});
+
+app.post('/recover-password', async (req, res) => {
+    try {
+        let { username, recoveryCode } = req.body;
+        recoveryCode = (recoveryCode || '').trim().toUpperCase();
+        const users = await queryAsync('SELECT id, username, role FROM users WHERE username = ?', [username]);
+
+        if (users.length === 0 || users[0].role !== 'admin' || users[0].username !== 'admin') {
+            return res.status(401).render('recover-password', { error: 'Invalid username or recovery code.' });
+        }
+
+        const user = users[0];
+        const codes = await queryAsync('SELECT id, code FROM recovery_codes WHERE user_id = ? AND is_used = 0', [user.id]);
+
+        console.log("--- DEBUGGING RECOVERY ---");
+        console.log("Code entered by user:", recoveryCode);
+        console.log("Codes found in DB:", codes);
+        console.log("--------------------------");
+
+        let matchedCodeId = null;
+        for (const row of codes) {
+            const isMatch = await bcrypt.compare(recoveryCode, row.code);
+            if (isMatch) {
+                matchedCodeId = row.id;
+                break;
+            }
+        }
+
+        if (matchedCodeId) {
+            await queryAsync('UPDATE recovery_codes SET is_used = 1 WHERE id = ?', [matchedCodeId]);
+            req.session.regenerate((err) => {
+                if (err) throw err;
+                req.session.resetAuthorized = true;
+                req.session.resetUserId = user.id;
+                req.session.username = user.username;
+                res.redirect('/reset-password');
+            });
+        } else {
+            return res.status(401).render('recover-password', { error: 'Invalid username or recovery code.' });
+        }
+    } catch (err) {
+        console.error('Error during password recovery:', err);
+        return res.status(500).render('recover-password', { error: 'An internal server error occurred.' });
+    }
+});
+
+app.post('/regenerate-recovery-codes', async (req, res) => {
+    try {
+        if (!req.session || req.session.role !== 'admin' || req.session.username !== 'admin') {
+            return res.status(403).send('Forbidden: Admin access required.');
+        }
+        const users = await queryAsync('SELECT id, password_hash FROM users WHERE username = ?', [req.session.username]);
+        if (users.length === 0) return res.status(400).send('Admin not found');
+        const adminId = users[0].id;
+
+        const { currentPassword } = req.body;
+        if (!currentPassword) {
+             return res.status(400).send("Password is required.");
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, users[0].password_hash);
+        if (!isMatch) {
+            return res.status(401).send("Incorrect password. Action denied.");
+        }
+
+        await beginTransactionAsync();
+        try {
+            await queryAsync('UPDATE recovery_codes SET is_used = 1 WHERE user_id = ?', [adminId]);
+            const plainCodes = [];
+            const saltRounds = 12;
+            for (let i = 0; i < 5; i++) {
+                const code = generateSecureRecoveryCode();
+                plainCodes.push(code);
+                const hashedCode = await bcrypt.hash(code, saltRounds);
+                await queryAsync('INSERT INTO recovery_codes (user_id, code, is_used) VALUES (?, ?, 0)', [adminId, hashedCode]);
+            }
+            await commitAsync();
+            res.render('admin/recovery-codes-generated', { codes: plainCodes });
+        } catch (txnErr) {
+            await rollbackAsync();
+            throw txnErr;
+        }
+    } catch (err) {
+        console.error('Error regenerating recovery codes:', err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.get('/reset-password', (req, res) => {
+    if (req.session.resetAuthorized !== true) {
+        return res.status(403).send('Forbidden: You must verify a recovery code first.');
+    }
+    res.render('reset-password', { error: null });
+});
+
+app.post('/reset-password', async (req, res) => {
+    try {
+        if (req.session.resetAuthorized !== true || !req.session.resetUserId) {
+            return res.status(403).send("Forbidden: Unauthorized reset attempt.");
+        }
+
+        const { newPassword, confirmPassword } = req.body;
+
+        if (newPassword !== confirmPassword) {
+            return res.render('reset-password', { error: 'Passwords do not match.' });
+        }
+
+        if (newPassword.length < 8) {
+            return res.render('reset-password', { error: 'Password must be at least 8 characters long.' });
+        }
+
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Run UPDATE query
+
+        await queryAsync('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, req.session.resetUserId]);
+
+        // Securely clear reset flags
+        req.session.resetAuthorized = false;
+        req.session.resetUserId = null;
+
+        res.redirect('/login');
+    } catch (err) {
+        console.error('Error resetting password:', err);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 // ==========================================

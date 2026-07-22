@@ -1,0 +1,18 @@
+<%- include('../partials/header') %>
+
+<div class="container mt-5">
+    <h2>Master Recovery Codes</h2>
+    
+    <div class="alert alert-warning" role="alert">
+        <strong>IMPORTANT:</strong> Please copy, print, or save these codes in a secure password manager immediately. They will only be shown this one time. Once you navigate away, they cannot be retrieved.
+    </div>
+    
+    <ul class="list-group mb-4">
+        <% codes.forEach(function(code) { %>
+            <li class="list-group-item font-monospace text-center fs-4 fw-bold"><%= code %></li>
+        <% }); %>
+    </ul>
+    
+    <button onclick="window.print()" class="btn btn-primary">Print Codes</button>
+    <a href="/staff-dashboard" class="btn btn-secondary">Return to Dashboard</a>
+</div>
