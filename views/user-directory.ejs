@@ -1,4 +1,5 @@
 <%- include('partials/header') %>
+<% const isSuperAdmin = (typeof role !== 'undefined' && role === 'admin') || (typeof currentUser !== 'undefined' && currentUser.username === 'admin'); %>
 
 <div class="staff-shell">
   <%- include('partials/staff-sidebar', { activePage: 'users' }) %>
@@ -179,9 +180,11 @@
                                                                     <button type="submit" class="btn btn-sm btn-outline-danger px-3">Delete</button>
                                                                 </form>
                                                             <% } %>
-                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                            <% if (isSuperAdmin || user.role === 'customer') { %>
+                                                              <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
                                                                 <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
-                                                            </form>
+                                                              </form>
+                                                            <% } %>
                                                         </div>
                                                     <% } %>
                                                 </td>
@@ -244,7 +247,6 @@
                                                 <td class="py-3 align-middle text-nowrap text-end">
                                                     <% if (user.username !== 'admin') { %>
                                                         <div class="d-flex justify-content-end align-items-center gap-2">
-                                                          <% const isSuperAdmin = (typeof role !== 'undefined' && role === 'admin') || (typeof currentUser !== 'undefined' && currentUser.username === 'admin'); %>
                                                           <% if (isSuperAdmin) { %>
                                                             <!-- Super Admin sees the direct Delete button -->
                                                             <form action="/admin/delete-customer/<%= user.id %>" method="POST" class="m-0">
@@ -256,10 +258,11 @@
                                                               <button type="submit" class="btn btn-sm btn-danger px-3">Approve Deletion</button>
                                                             </form>
                                                           <% } %>
-                                                          <!-- Everyone sees Reset Code -->
-                                                          <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
-                                                            <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
-                                                          </form>
+                                                          <% if (isSuperAdmin || user.role === 'customer') { %>
+                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
+                                                              <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
+                                                            </form>
+                                                          <% } %>
                                                         </div>
                                                     <% } %>
                                                 </td>

@@ -890,6 +890,10 @@ app.post('/staff/reset-user/:id', async (req, res) => {
             return res.status(403).send("Cannot reset the system admin account");
         }
 
+        if (req.session.role === 'staff' && targetUser.role === 'staff') {
+            return res.status(403).send("Unauthorized: Staff cannot reset other staff codes.");
+        }
+
         const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 char hex
         try {
             const salt = await bcrypt.genSalt(10);
