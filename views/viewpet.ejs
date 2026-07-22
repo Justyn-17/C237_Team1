@@ -35,18 +35,22 @@
 
         <!-- Pet profile -->
         <div class="col-lg-4">
-          <div class="panel mb-3">
+          <div class="panel mb-3" style="overflow: hidden;">
+            <div class="pet-photo-wrap">
+              <% if (photoPath(pet.photo)) { %>
+                <img src="<%= photoPath(pet.photo) %>" alt="<%= pet.name %>" class="pet-photo">
+              <% } else { %>
+                <div class="pet-photo-empty">🐾</div>
+              <% } %>
+              <span class="pet-photo-tag"><%= pet.species %></span>
+            </div>
             <div class="panel-body text-center">
-              <img src="<%= photoPath(pet.photo) || petPlaceholder %>"
-                   alt="<%= pet.name %>" class="rounded-4 shadow-sm mb-3"
-                   style="width: 150px; height: 150px; object-fit: cover;">
               <h5 class="fw-bold mb-1 text-dark"><%= pet.name %></h5>
               <div class="text-muted small mb-3"><%= pet.breed || 'Unknown breed' %></div>
 
               <div class="d-flex flex-wrap justify-content-center gap-2">
-                <span class="chip chip-teal"><%= pet.species %></span>
                 <span class="chip"><%= pet.gender %></span>
-                <span class="chip chip-violet"><%= pet.age %> yr</span>
+                <span class="chip chip-violet"><%= formatAge(pet.age) %></span>
               </div>
             </div>
           </div>

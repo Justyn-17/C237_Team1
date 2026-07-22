@@ -119,7 +119,11 @@
                                                             <% myApptRows.forEach(a=> { %>
                                                                 <tr>
                                                                     <td>
-                                                                        <%= a.pet_name || ('#' + a.pet_id) %>
+                                                                        <% if (a.pet_name) { %>
+                                                                            <%= a.pet_name %>
+                                                                        <% } else { %>
+                                                                            <span class="text-muted fst-italic">Deleted pet</span>
+                                                                        <% } %>
                                                                     </td>
                                                                     <td>
                                                                         <%= a.owner_name || '-' %>

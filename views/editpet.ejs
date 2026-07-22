@@ -17,7 +17,15 @@
         </a>
       </div>
 
-      <form action="/pets/edit/<%= pet.id %>" method="POST" enctype="multipart/form-data">
+      <% const formError = typeof error !== 'undefined' ? error : null; %>
+      <% if (formError) { %>
+        <div class="alert alert-danger d-flex align-items-center gap-2 rounded-3 border-0 mb-3">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <div><%= formError %></div>
+        </div>
+      <% } %>
+
+      <form id="petForm" action="/pets/edit/<%= pet.id %>" method="POST" enctype="multipart/form-data" novalidate>
         <div class="row g-3">
 
           <div class="col-lg-8">
@@ -30,27 +38,30 @@
                     <label class="form-label-sm d-block">Pet Name</label>
                     <input type="text" name="name" class="form-control app-input" maxlength="50"
                            value="<%= pet.name %>" required>
+                    <div class="invalid-feedback">Please enter your pet's name.</div>
                   </div>
 
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Species</label>
                     <select name="species" id="speciesSelect" class="form-select app-input" required>
-                      <option value="">Select Species</option>
+                      <option value="" disabled>Select Species</option>
                       <option value="Dog" <%= pet.species === 'Dog' ? 'selected' : '' %>>🐕 Dog</option>
                       <option value="Cat" <%= pet.species === 'Cat' ? 'selected' : '' %>>🐈 Cat</option>
                       <option value="Bird" <%= pet.species === 'Bird' ? 'selected' : '' %>>🐦 Bird</option>
                       <option value="Rabbit" <%= pet.species === 'Rabbit' ? 'selected' : '' %>>🐰 Rabbit</option>
                     </select>
+                    <div class="invalid-feedback">Please select a species.</div>
                   </div>
 
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Breed</label>
                     <select name="breed" id="breedSelect" class="form-select app-input" required>
-                      <option value="">Select Breed</option>
+                      <option value="" disabled>Select Breed</option>
                       <% if (pet.breed) { %>
                         <option value="<%= pet.breed %>" selected><%= pet.breed %></option>
                       <% } %>
                     </select>
+                    <div class="invalid-feedback">Please select a breed.</div>
                   </div>
 
                   <!-- Custom breed input for "Other" option -->
@@ -59,22 +70,26 @@
                     <input type="text" name="customBreed" id="customBreedInput"
                            class="form-control app-input" maxlength="50"
                            placeholder="e.g. Mixed Breed, Crossbreed">
+                    <div class="invalid-feedback">Please type the breed name.</div>
                   </div>
 
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Gender</label>
                     <select name="gender" class="form-select app-input" required>
+                      <option value="" disabled <%= pet.gender ? '' : 'selected' %>>Select Gender</option>
                       <option value="Male" <%= pet.gender === 'Male' ? 'selected' : '' %>>Male</option>
                       <option value="Female" <%= pet.gender === 'Female' ? 'selected' : '' %>>Female</option>
                       <option value="Unknown" <%= pet.gender === 'Unknown' ? 'selected' : '' %>>Unknown</option>
                     </select>
+                    <div class="invalid-feedback">Please select a gender.</div>
                   </div>
 
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Age (in years)</label>
                     <input type="number" name="age" step="0.1" class="form-control app-input"
-                           min="0" max="50" value="<%= pet.age %>"
+                           min="0" max="50" value="<%= Number(pet.age) %>"
                            placeholder="e.g. 2 or 0.5 (for 6 months)" required>
+                    <div class="invalid-feedback">Please enter an age between 0 and 50.</div>
                     <div class="form-text">Use decimals for months: 0.5 = 6 months, 0.25 = 3 months, 0.08 = 1 month</div>
                   </div>
                 </div>
@@ -183,18 +198,26 @@
         }
     });
 
-    // Form submission validation
-    document.querySelector('form').addEventListener('submit', function(e) {
-        if (breedSelect.value === 'other' && !customBreedInput.value.trim()) {
+    // Show a message under each field that still needs an answer instead of
+    // bouncing the customer to a blank error page.
+    const petForm = document.getElementById('petForm');
+    petForm.addEventListener('submit', function (e) {
+        if (!petForm.checkValidity()) {
             e.preventDefault();
-            alert('Please enter a custom breed or select one from the list.');
-            customBreedInput.focus();
-            return false;
+            e.stopPropagation();
+            petForm.classList.add('was-validated');
+            const firstInvalid = petForm.querySelector(':invalid');
+            if (firstInvalid) firstInvalid.focus();
         }
     });
 
     // Initialize on page load
     updateBreedOptions();
+
+    // Back/forward cache restores the selections but not the generated options
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) updateBreedOptions();
+    });
 </script>
 
 </body>

@@ -69,7 +69,7 @@
                       <td><%= pet.species %></td>
                       <td><%= pet.breed || 'Unknown' %></td>
                       <td><%= pet.gender %></td>
-                      <td><%= pet.age %></td>
+                      <td><%= formatAge(pet.age) %></td>
                       <td class="text-end">
                         <a href="/staff/pets/view/<%= pet.id %>"
                            class="btn btn-info btn-sm text-white fw-semibold shadow-sm">📄 View Records</a>

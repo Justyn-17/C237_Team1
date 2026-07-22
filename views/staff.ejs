@@ -110,7 +110,11 @@
                             <% apptRows.forEach(a=> { %>
                               <tr>
                                 <td>
-                                  <%= a.pet_name || ('#' + a.pet_id) %>
+                                  <% if (a.pet_name) { %>
+                                    <%= a.pet_name %>
+                                  <% } else { %>
+                                    <span class="text-muted fst-italic">Deleted pet</span>
+                                  <% } %>
                                 </td>
                                 <td>
                                   <%= a.owner_name || '-' %>
@@ -225,9 +229,18 @@
             return;
           }
 
+          // Names come from user input, so escape them before building the row HTML
+          const esc = (v) => String(v).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+          }[c]));
+
           tbody.innerHTML = data.map(a => {
-            const petDisplay = a.pet_name || ('#' + a.pet_id);
-            const ownerDisplay = a.owner_name || '-';
+            // A missing pet_name means the pet record was deleted — show that
+            // rather than a raw ID the staff can't do anything with.
+            const petDisplay = a.pet_name
+              ? esc(a.pet_name)
+              : '<span class="text-muted fst-italic">Deleted pet</span>';
+            const ownerDisplay = a.owner_name ? esc(a.owner_name) : '-';
             const dateStr = a.date ? (new Date(a.date)).toISOString().slice(0, 10) : a.date;
             const timeStr = a.start_time ? String(a.start_time).slice(0, 5) : '';
 

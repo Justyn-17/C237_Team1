@@ -1,4 +1,5 @@
 <%- include('partials/header') %>
+<% const isSuperAdmin = (typeof role !== 'undefined' && role === 'admin') || (typeof currentUser !== 'undefined' && currentUser.username === 'admin'); %>
 
 <div class="staff-shell">
   <%- include('partials/staff-sidebar', { activePage: 'users' }) %>
@@ -54,51 +55,50 @@
         </div>
     <% } %>
 
-    <div class="row g-4">
-        <!-- Add Staff Form -->
-        <div class="col-xl-3 col-lg-4 mb-4">
-            <div class="card shadow-sm border-0 rounded-4 h-100" style="transition: transform 0.2s;">
-                <div class="card-header bg-white border-0 pt-4 pb-2 px-4">
-                    <h4 class="fw-bold mb-0" style="color: #0d9488;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-person-plus-fill me-2 mb-1" viewBox="0 0 16 16">
-                            <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                            <path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5z"/>
-                        </svg>
-                        Add Staff Member
-                    </h4>
-                </div>
-                <div class="card-body p-4">
-                    <!-- TODO(security): Add CSRF token for production -->
-                    <form action="/staff/create-user" method="POST">
-                        <div id="staffFormContainer">
-                            <div class="staff-form-group position-relative mb-4 pb-3 border-bottom">
-                                <div class="mb-3">
-                                    <label class="form-label text-secondary fw-semibold">Full Name</label>
-                                    <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][name]" required placeholder="e.g. John Doe">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label text-secondary fw-semibold">Username</label>
-                                    <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][username]" required placeholder="e.g. jdoe">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label text-secondary fw-semibold">Phone Number</label>
-                                    <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][phone]" required placeholder="e.g. 555-0123">
+    <div class="d-flex flex-row align-items-start w-100" style="gap: 1.5rem;">
+        <!-- Add Staff Panel (Collapse) -->
+        <div class="collapse collapse-horizontal" id="addStaffPanel" style="will-change: width; transform: translateZ(0);">
+            <div style="width: 320px; overflow: hidden;">
+                <div class="card shadow-sm border-0 rounded-4 mb-4">
+                    <div class="card-header bg-white border-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0" style="color: #0d9488;">
+                            <i class="bi bi-person-plus-fill me-2"></i> Add Staff Member
+                        </h5>
+                        <button type="button" class="btn-close shadow-none" data-bs-toggle="collapse" data-bs-target="#addStaffPanel" aria-label="Close"></button>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- TODO(security): Add CSRF token for production -->
+                        <form action="/staff/create-user" method="POST">
+                            <div id="staffFormContainer">
+                                <div class="staff-form-group position-relative mb-4 pb-3 border-bottom">
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary fw-semibold">Full Name</label>
+                                        <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][name]" required placeholder="e.g. John Doe">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary fw-semibold">Username</label>
+                                        <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][username]" required placeholder="e.g. jdoe">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary fw-semibold">Phone Number</label>
+                                        <input type="text" class="form-control form-control-lg bg-light border-0 shadow-none" name="users[0][phone]" required placeholder="e.g. 555-0123">
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <button type="button" id="addStaffBtn" class="btn btn-outline-secondary btn-lg w-100 rounded-pill fw-bold shadow-sm mb-3">
-                            + Add another staff
-                        </button>
-                        <button type="submit" class="btn btn-lg w-100 rounded-pill fw-bold shadow-sm text-white" style="background-color: #0d9488;">
-                            Create Account(s)
-                        </button>
-                    </form>
+                            <button type="button" id="addStaffBtn" class="btn btn-outline-secondary btn-lg w-100 rounded-pill fw-bold shadow-sm mb-3">
+                                + Add another staff
+                            </button>
+                            <button type="submit" class="btn btn-lg w-100 rounded-pill fw-bold shadow-sm text-white" style="background-color: #0d9488;">
+                                Create Account(s)
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Users Tabbed Interface -->
-        <div class="col-xl-9 col-lg-8">
+        <div class="flex-grow-1 overflow-hidden" style="transition: width 0.35s ease, margin 0.35s ease; min-width: 0;">
             <div class="card shadow-sm border-0 rounded-4 h-100">
                 <div class="card-body p-4">
                     
@@ -117,6 +117,9 @@
                                 <option value="delete">Account Delete Request</option>
                                 <option value="password">Password Reset Request</option>
                             </select>
+                            <button class="btn btn-success text-white fw-semibold shadow-sm ms-2" style="white-space: nowrap;" type="button" data-bs-toggle="collapse" data-bs-target="#addStaffPanel" aria-expanded="false" aria-controls="addStaffPanel">
+                                <i class="bi bi-person-plus me-1"></i> Add Staff Member
+                            </button>
                         </div>
                     </div>
 
@@ -148,7 +151,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="staffTableBody">
-                                        <% const staffUsers = users.filter(u => u.role === 'staff' && u.status !== 'deleted'); %>
+                                        <% const staffUsers = users.filter(u => (u.role === 'staff' || u.role === 'admin') && u.status !== 'deleted'); %>
                                         <% staffUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
@@ -162,7 +165,13 @@
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
-                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold shadow-sm" style="background-color: #0d9488; color: white;">Staff</span>
+                                                    <% if (user.role === 'admin') { %>
+                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                    <% } else if (user.role === 'staff') { %>
+                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                    <% } else { %>
+                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                    <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.requires_password_reset) { %>
@@ -179,9 +188,11 @@
                                                                     <button type="submit" class="btn btn-sm btn-outline-danger px-3">Delete</button>
                                                                 </form>
                                                             <% } %>
-                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                            <% if (isSuperAdmin || user.role === 'customer') { %>
+                                                              <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
                                                                 <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
-                                                            </form>
+                                                              </form>
+                                                            <% } %>
                                                         </div>
                                                     <% } %>
                                                 </td>
@@ -210,7 +221,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="customersTableBody">
-                                        <% const customerUsers = users.filter(u => u.role !== 'staff' && u.status !== 'deleted'); %>
+                                        <% const customerUsers = users.filter(u => u.role === 'customer' && u.status !== 'deleted'); %>
                                         <% customerUsers.forEach(function(user) { %>
                                             <tr class="searchable-row">
                                                 <td class="py-3 align-middle">
@@ -232,7 +243,13 @@
                                                 <td class="py-3 align-middle text-muted searchable-username"><%= user.username %></td>
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
-                                                    <span class="badge rounded-pill px-3 py-2 fw-semibold text-dark shadow-sm" style="background-color: #e2e8f0;">Customer</span>
+                                                    <% if (user.role === 'admin') { %>
+                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                    <% } else if (user.role === 'staff') { %>
+                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                    <% } else { %>
+                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                    <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.status === 'deletion_requested') { %>
@@ -244,7 +261,6 @@
                                                 <td class="py-3 align-middle text-nowrap text-end">
                                                     <% if (user.username !== 'admin') { %>
                                                         <div class="d-flex justify-content-end align-items-center gap-2">
-                                                          <% const isSuperAdmin = (typeof role !== 'undefined' && role === 'admin') || (typeof currentUser !== 'undefined' && currentUser.username === 'admin'); %>
                                                           <% if (isSuperAdmin) { %>
                                                             <!-- Super Admin sees the direct Delete button -->
                                                             <form action="/admin/delete-customer/<%= user.id %>" method="POST" class="m-0">
@@ -256,10 +272,11 @@
                                                               <button type="submit" class="btn btn-sm btn-danger px-3">Approve Deletion</button>
                                                             </form>
                                                           <% } %>
-                                                          <!-- Everyone sees Reset Code -->
-                                                          <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
-                                                            <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
-                                                          </form>
+                                                          <% if (isSuperAdmin || user.role === 'customer') { %>
+                                                            <form action="/staff/reset-user/<%= user.id %>" method="POST" class="m-0">
+                                                              <button type="submit" class="btn btn-sm btn-outline-warning text-dark px-3">Reset Code</button>
+                                                            </form>
+                                                          <% } %>
                                                         </div>
                                                     <% } %>
                                                 </td>
