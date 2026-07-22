@@ -1,11 +1,8 @@
-<% /* Shared customer sidebar + customer UI kit.
-    Usage: include('partials/customer-sidebar', { activePage: 'dashboard' })
-    activePage values: 'dashboard' | 'book' | 'appointments' | 'reminders' | 'expenses' | 'profile'
-    Only customer-facing views include this file — staff views keep partials/staff-sidebar.
-    */
-    const _cActive = typeof activePage !== 'undefined' ? activePage : '';
-    const _cName = typeof username !== 'undefined' && username ? username : 'Pet Owner';
-    %>
+<% /* Shared customer sidebar + customer UI kit. Usage: include('partials/customer-sidebar', { activePage: 'dashboard'
+    }) activePage values: 'dashboard' | 'book' | 'appointments' | 'reminders' | 'expenses' | 'profile' Only
+    customer-facing views include this file — staff views keep partials/staff-sidebar. */ const _cActive=typeof
+    activePage !=='undefined' ? activePage : '' ; const _cName=typeof username !=='undefined' && username ? username
+    : 'Pet Owner' ; %>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
     <style>
@@ -284,10 +281,25 @@
             flex-shrink: 0;
         }
 
-        .stat-icon.teal   { background: #f0fdfa; color: #0d9488; }
-        .stat-icon.blue   { background: #eff6ff; color: #2563eb; }
-        .stat-icon.amber  { background: #fffbeb; color: #d97706; }
-        .stat-icon.violet { background: #f5f3ff; color: #7c3aed; }
+        .stat-icon.teal {
+            background: #f0fdfa;
+            color: #0d9488;
+        }
+
+        .stat-icon.blue {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .stat-icon.amber {
+            background: #fffbeb;
+            color: #d97706;
+        }
+
+        .stat-icon.violet {
+            background: #f5f3ff;
+            color: #7c3aed;
+        }
 
         .stat-label {
             color: #64748b;
@@ -410,12 +422,35 @@
             color: #475569;
         }
 
-        .chip-teal   { background: #f0fdfa; color: #0f766e; }
-        .chip-blue   { background: #eff6ff; color: #1d4ed8; }
-        .chip-amber  { background: #fffbeb; color: #b45309; }
-        .chip-red    { background: #fef2f2; color: #b91c1c; }
-        .chip-green  { background: #f0fdf4; color: #15803d; }
-        .chip-violet { background: #f5f3ff; color: #6d28d9; }
+        .chip-teal {
+            background: #f0fdfa;
+            color: #0f766e;
+        }
+
+        .chip-blue {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .chip-amber {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        .chip-red {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .chip-green {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .chip-violet {
+            background: #f5f3ff;
+            color: #6d28d9;
+        }
 
         /* ---------- Tables ---------- */
         .app-table {
@@ -533,7 +568,6 @@
             background: var(--primary-teal, #0d9488);
             color: #fff;
         }
-
     </style>
 
     <nav class="app-sidebar" id="appSidebar">
@@ -553,37 +587,52 @@
         <div class="sidebar-subtitle">My Pet Portal</div>
 
         <div class="sidebar-user">
-            <div class="sidebar-user-avatar"><%= _cName.charAt(0) %></div>
+            <div class="sidebar-user-avatar">
+                <%= _cName.charAt(0) %>
+            </div>
             <div class="sidebar-user-meta">
-                <div class="sidebar-user-name"><%= _cName %></div>
+                <div class="sidebar-user-name">
+                    <%= _cName %>
+                </div>
                 <div class="sidebar-user-role">Pet Owner</div>
             </div>
         </div>
 
         <ul class="nav flex-column flex-grow-1">
             <li class="nav-item">
-                <a class="nav-link <%= _cActive === 'dashboard' ? 'active' : '' %>" href="/customer-dashboard" title="My Pets">
+                <a class="nav-link <%= _cActive === 'dashboard' ? 'active' : '' %>" href="/customer-dashboard"
+                    title="My Pets">
                     <i class="bi bi-house-heart-fill"></i> <span class="nav-link-label">My Pets</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <%= _cActive === 'book' ? 'active' : '' %>" href="/appointments/new" title="Book Appointment">
+                <a class="nav-link <%= _cActive === 'book' ? 'active' : '' %>" href="/appointments/new"
+                    title="Book Appointment">
                     <i class="bi bi-calendar-plus-fill"></i> <span class="nav-link-label">Book Appointment</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <%= _cActive === 'appointments' ? 'active' : '' %>" href="/appointments/my" title="My Appointments">
+                <a class="nav-link <%= _cActive === 'appointments' ? 'active' : '' %>" href="/appointments/my"
+                    title="My Appointments">
                     <i class="bi bi-calendar-check-fill"></i> <span class="nav-link-label">My Appointments</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <%= _cActive === 'reminders' ? 'active' : '' %>" href="/reminders" title="Care Reminders">
+                <a class="nav-link <%= _cActive === 'reminders' ? 'active' : '' %>" href="/reminders"
+                    title="Care Reminders">
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <%= _cActive === 'expenses' ? 'active' : '' %>" href="/expenses" title="Expense Tracking">
-                    <i class="bi bi-cash-coin"></i> <span class="nav-link-label">Expense Tracking</span>
+                <a class="nav-link <%= _cActive === 'notifications' ? 'active' : '' %>" href="/notifications"
+                    title="Notifications">
+                    <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Notifications</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <%= _cActive === 'expenses' ? 'active' : '' %>" href="/expenses"
+                    title="Billing & Expenses">
+                    <i class="bi bi-credit-card-fill"></i> <span class="nav-link-label">Billing & Expenses</span>
                 </a>
             </li>
             <li class="nav-item">
