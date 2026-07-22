@@ -166,18 +166,18 @@
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.role === 'admin') { %>
-                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                      <span class="fw-semibold">Admin</span>
                                                     <% } else if (user.role === 'staff') { %>
-                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                      <span class="badge bg-dark rounded-pill px-3 py-2">Staff</span>
                                                     <% } else { %>
-                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                      <span class="badge bg-secondary rounded-pill px-3 py-2">Customer</span>
                                                     <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.requires_password_reset) { %>
-                                                        <span class="badge rounded-pill px-3 py-2 text-dark shadow-sm" style="background-color: #fef08a;"><i class="bi bi-exclamation-circle me-1"></i>Pending Setup</span>
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> Pending Setup</span>
                                                     <% } else { %>
-                                                        <span class="badge rounded-pill px-3 py-2 text-white shadow-sm" style="background-color: #22c55e;"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Active</span>
                                                     <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle text-nowrap text-end">
@@ -244,11 +244,11 @@
                                                 <td class="py-3 align-middle text-muted searchable-phone"><%= user.phone || 'N/A' %></td>
                                                 <td class="py-3 align-middle">
                                                     <% if (user.role === 'admin') { %>
-                                                      <span class="badge bg-dark rounded-pill">Admin</span>
+                                                      <span class="fw-semibold">Admin</span>
                                                     <% } else if (user.role === 'staff') { %>
-                                                      <span class="badge bg-primary rounded-pill">Staff</span>
+                                                      <span class="badge bg-dark rounded-pill px-3 py-2">Staff</span>
                                                     <% } else { %>
-                                                      <span class="badge bg-secondary rounded-pill">Customer</span>
+                                                      <span class="badge bg-secondary rounded-pill px-3 py-2">Customer</span>
                                                     <% } %>
                                                 </td>
                                                 <td class="py-3 align-middle">
