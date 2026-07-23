@@ -1,16 +1,6 @@
 <%- include('partials/header') %>
 <% var admin = (typeof isAdmin !== 'undefined') && isAdmin; %>
 
-<%
-  const prettyDateFromYMD = (dVal) => {
-    const dStr = String(dVal || '').slice(0, 10);
-    if (dStr.length !== 10 || dStr[4] !== '-' || dStr[7] !== '-') return String(dVal || '');
-    const [y, m, d] = dStr.split('-');
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${parseInt(d, 10)} ${monthNames[parseInt(m, 10) - 1]} ${y}`;
-  };
-%>
-
 <% if (admin || role === 'staff') { %>
   <div class="staff-shell">
     <%- include('partials/staff-sidebar', { activePage: 'appointments' }) %>
@@ -149,14 +139,8 @@
                   <% } else { %>
                     <td><%= role === 'staff' ? (a.owner_name || '-') : (a.vet_name || '-') %></td>
                   <% } %>
-                  <td><%= prettyDateFromYMD(a.date) %></td>
-                  <td>
-                    <%
-                      const timeStr = String(a.start_time || '');
-                      const prettyTime = timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr;
-                    %>
-                    <%= prettyTime %>
-                  </td>
+                  <td><%= formatDate(a.date, { weekday: true }) %></td>
+                  <td><%= formatTime(a.start_time) %></td>
                   <td>
                     <% if (a.status === 'booked') { %>
                       <span class="badge bg-primary">Booked</span>

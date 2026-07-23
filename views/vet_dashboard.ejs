@@ -129,12 +129,10 @@
                                                                         <%= a.owner_name || '-' %>
                                                                     </td>
                                                                     <td>
-                                                                        <%= a.date && a.date.toISOString ?
-                                                                            a.date.toISOString().slice(0, 10) : a.date
-                                                                            %>
+                                                                        <%= formatDate(a.date) %>
                                                                     </td>
                                                                     <td>
-                                                                        <%= String(a.start_time || '' ).slice(0, 5) %>
+                                                                        <%= formatTime(a.start_time) %>
                                                                     </td>
                                                                     <td>
                                                                         <% if (a.status==='booked' ) { %>

@@ -36,6 +36,51 @@ app.locals.photoPath = function (photo) {
     return photo;
 };
 
+// Date/time formatting for views. The MySQL driver hands back DATE columns as JS
+// Date objects, so rendering them directly prints the raw
+// "Fri Jul 31 2026 00:00:00 GMT+0800 (...)" string. These helpers turn that into a
+// readable label, using LOCAL date parts (not toISOString/UTC, which would be off
+// by a day here since a DATE is parsed as local midnight).
+const _WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// formatDate(value, { weekday: true }) -> "Mon, 20 Jul 2026"  (weekday defaults off)
+app.locals.formatDate = function (value, opts) {
+    if (value === null || value === undefined || value === '') return '—';
+
+    let d;
+    if (value instanceof Date) {
+        d = value;
+    } else {
+        // Accept a "YYYY-MM-DD..." string and build a local calendar date from it,
+        // so a plain date string is never shifted by a timezone.
+        const ymd = String(value).slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+            const [y, m, day] = ymd.split('-').map(Number);
+            d = new Date(y, m - 1, day);
+        } else {
+            d = new Date(value);
+        }
+    }
+
+    if (isNaN(d.getTime())) return String(value);
+
+    const base = `${d.getDate()} ${_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    return (opts && opts.weekday) ? `${_WEEKDAYS[d.getDay()]}, ${base}` : base;
+};
+
+// formatTime("14:00:00") -> "2:00 PM"
+app.locals.formatTime = function (value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const m = String(value).match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return String(value);
+    let hours = parseInt(m[1], 10);
+    const minutes = m[2];
+    const meridiem = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${meridiem}`;
+};
+
 // `pets.age` stores decimals (0.5 = 6 months), so show young pets in months
 // rather than printing "0.5 yr".
 app.locals.formatAge = function (age) {

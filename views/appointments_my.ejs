@@ -7,29 +7,16 @@
     <div class="app-content">
 
       <%
-        const prettyDateFromYMD = (dVal) => {
-          const dStr = String(dVal || '').slice(0, 10);
-          if (dStr.length !== 10 || dStr[4] !== '-' || dStr[7] !== '-') return String(dVal || '');
-          const [y, m, d] = dStr.split('-');
-          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          return `${parseInt(d, 10)} ${monthNames[parseInt(m, 10) - 1]} ${y}`;
-        };
-
+        // Split into upcoming (still booked) vs everything else, newest history first.
         const upcoming = [];
         const history = [];
 
         appointments.forEach(a => {
-          const dateStr = String(a.date || '').slice(0, 10);
-          if (a.status === 'booked' && dateStr) upcoming.push(a);
+          if (a.status === 'booked') upcoming.push(a);
           else history.push(a);
         });
 
         history.reverse();
-
-        const prettyTime = t => {
-          const s = String(t || '');
-          return s.length >= 5 ? s.slice(0, 5) : s;
-        };
 
         const statusChip = s =>
           s === 'booked' ? 'chip-blue' :
@@ -110,8 +97,8 @@
                       <div class="text-muted small"><%= a.pet_species %></div>
                     </td>
                     <td><%= a.vet_name || '—' %></td>
-                    <td><%= prettyDateFromYMD(a.date) %></td>
-                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= formatDate(a.date, { weekday: true }) %></td>
+                    <td><%= formatTime(a.start_time) %></td>
                     <td><%= a.reason || '—' %></td>
                     <td class="text-end">
                       <div class="d-flex align-items-center justify-content-end gap-2">
@@ -162,8 +149,8 @@
                       <div class="text-muted small"><%= a.pet_species %></div>
                     </td>
                     <td><%= a.vet_name || '—' %></td>
-                    <td><%= prettyDateFromYMD(a.date) %></td>
-                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= formatDate(a.date, { weekday: true }) %></td>
+                    <td><%= formatTime(a.start_time) %></td>
                     <td><%= a.reason || '—' %></td>
                     <td class="text-end">
                       <span class="chip <%= statusChip(a.status) %> text-capitalize"><%= a.status %></span>
