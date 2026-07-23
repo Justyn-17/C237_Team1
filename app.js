@@ -1794,79 +1794,24 @@ app.post('/appointments', requireRole('customer'), (req, res) => {
         return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
-    const start_time = slot_time;
-    const end_time = slot_time;
+    // Reject bookings in the past. The browser sets a min date, but never trust it —
+    // a past date, or a time that already passed today, must be blocked here too.
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-    // Validate the selected vet is a real active staff user (not the system admin)
-    db.query(
-        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
-        [vet_id],
-        (errVet, vets) => {
-            if (errVet) {
-                console.error('Vet validation error:', errVet);
-                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
-            }
-            if (vets.length === 0) {
-                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
-            }
-
-            // Slots are discrete one-hour times: a slot clashes only with a
-            // non-cancelled booking for the SAME vet, date and start time.
-            const conflictSql = `
-                SELECT id
-                FROM appointments
-                WHERE vet_id = ?
-                  AND date = ?
-                  AND start_time = ?
-                  AND status <> 'cancelled'
-            `;
-
-            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
-                if (err) {
-                    console.error('Conflict check error:', err);
-                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
-                }
-
-                if (rows.length > 0) {
-                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
-                }
-
-                // Only book if the chosen pet belongs to the logged-in customer
-                const insertSql = `
-                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
-                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
-                    FROM pets WHERE id = ? AND owner_id = ?
-                `;
-                db.query(
-                    insertSql,
-                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
-                    (err2, result) => {
-                        if (err2) {
-                            console.error('Insert appointment error:', err2);
-                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
-                        }
-
-                        if (result.affectedRows === 0) {
-                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
-                        }
-
-                        res.redirect('/appointments/my');
-                    }
-                );
-            });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).send("Please choose a valid date. <a href='/appointments/new'>Go back</a>");
+    }
+    if (date < todayStr) {
+        return res.status(400).send("You can't book an appointment in the past. <a href='/appointments/new'>Pick a future date</a>");
+    }
+    if (date === todayStr) {
+        const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        // slot_time is "HH:00:00"; a same-format string compare is safe here.
+        if (String(slot_time) <= nowTime) {
+            return res.status(400).send("That time slot has already passed today. <a href='/appointments/new'>Pick a later slot</a>");
         }
-    );
-});
-
-// (rest of your appointments routes stay the same: /appointments/my, /appointments, cancel, complete, etc.)
-// Create appointment with conflict checking (single time slot)
-app.post('/appointments', requireRole('customer'), (req, res) => {
-    const { pet_id, vet_id, date, slot_time, reason } = req.body;
-
-    const owner_id = req.session.userId; // logged-in customer
-
-    if (!pet_id || !vet_id || !date || !slot_time) {
-        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
     const start_time = slot_time;
