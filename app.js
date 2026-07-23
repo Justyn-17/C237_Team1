@@ -8,7 +8,7 @@ const fs = require('fs');
 const multer = require('multer');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // --- SECURITY GUIDELINES COMPLIANCE ---
 // Session Secret Management
@@ -2610,6 +2610,6 @@ app.get('/admin/system-health', async (req, res) => {
 // Start Server
 // ==========================================
 
-app.listen(PORT, '127.0.0.1', () => {
-    console.log(`Server running on http://127.0.0.1:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
 });
