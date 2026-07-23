@@ -118,7 +118,8 @@ const db = mysql.createConnection({
     user: process.env.DB_USER || 'c237_023',
     password: process.env.DB_PASSWORD || 'c237023@2026!',
     database: process.env.DB_NAME || 'c237_023_team1_petcenter',
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    dateString: true
 });
 
 db.connect((err) => {
@@ -1624,11 +1625,114 @@ app.get('/appointments/new', requireRole('customer'), (req, res) => {
                 console.error("Error fetching vets for appointments:", err2);
                 return res.status(500).send("Database error");
             }
+            // No bookedTimes here; front-end JS will fetch them
             res.render('appointments_new', { pets, vets });
         });
     });
 });
 
+// API: return booked times for a vet + date as JSON (used by JS on /appointments/new)
+app.get('/api/appointments/slots', requireRole('customer'), (req, res) => {
+    const { vet_id, date } = req.query;
+
+    if (!vet_id || !date) {
+        return res.json({ bookedTimes: [] });
+    }
+
+    const sql = `
+        SELECT start_time
+        FROM appointments
+        WHERE vet_id = ?
+          AND date = ?
+          AND status <> 'cancelled'
+    `;
+
+    db.query(sql, [vet_id, date], (err, rows) => {
+        if (err) {
+            console.error('Error fetching booked slots:', err);
+            return res.status(500).json({ bookedTimes: [] });
+        }
+
+        const bookedTimes = rows.map(r => String(r.start_time)); // e.g. ['11:00:00']
+        res.json({ bookedTimes });
+    });
+});
+
+// Create appointment with conflict checking (single time slot)
+app.post('/appointments', requireRole('customer'), (req, res) => {
+    const { pet_id, vet_id, date, slot_time, reason } = req.body;
+
+    const owner_id = req.session.userId; // logged-in customer
+
+    if (!pet_id || !vet_id || !date || !slot_time) {
+        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
+    }
+
+    const start_time = slot_time;
+    const end_time = slot_time;
+
+    // Validate the selected vet is a real active staff user (not the system admin)
+    db.query(
+        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
+        [vet_id],
+        (errVet, vets) => {
+            if (errVet) {
+                console.error('Vet validation error:', errVet);
+                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
+            }
+            if (vets.length === 0) {
+                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
+            }
+
+            // Slots are discrete one-hour times: a slot clashes only with a
+            // non-cancelled booking for the SAME vet, date and start time.
+            const conflictSql = `
+                SELECT id
+                FROM appointments
+                WHERE vet_id = ?
+                  AND date = ?
+                  AND start_time = ?
+                  AND status <> 'cancelled'
+            `;
+
+            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
+                if (err) {
+                    console.error('Conflict check error:', err);
+                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
+                }
+
+                if (rows.length > 0) {
+                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
+                }
+
+                // Only book if the chosen pet belongs to the logged-in customer
+                const insertSql = `
+                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
+                    FROM pets WHERE id = ? AND owner_id = ?
+                `;
+                db.query(
+                    insertSql,
+                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
+                    (err2, result) => {
+                        if (err2) {
+                            console.error('Insert appointment error:', err2);
+                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+                        }
+
+                        if (result.affectedRows === 0) {
+                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
+                        }
+
+                        res.redirect('/appointments/my');
+                    }
+                );
+            });
+        }
+    );
+});
+
+// (rest of your appointments routes stay the same: /appointments/my, /appointments, cancel, complete, etc.)
 // Create appointment with conflict checking (single time slot)
 app.post('/appointments', requireRole('customer'), (req, res) => {
     const { pet_id, vet_id, date, slot_time, reason } = req.body;

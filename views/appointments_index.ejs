@@ -1,6 +1,16 @@
 <%- include('partials/header') %>
 <% var admin = (typeof isAdmin !== 'undefined') && isAdmin; %>
 
+<%
+  const prettyDateFromYMD = (dVal) => {
+    const dStr = String(dVal || '').slice(0, 10);
+    if (dStr.length !== 10 || dStr[4] !== '-' || dStr[7] !== '-') return String(dVal || '');
+    const [y, m, d] = dStr.split('-');
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${parseInt(d, 10)} ${monthNames[parseInt(m, 10) - 1]} ${y}`;
+  };
+%>
+
 <% if (admin || role === 'staff') { %>
   <div class="staff-shell">
     <%- include('partials/staff-sidebar', { activePage: 'appointments' }) %>
@@ -49,8 +59,6 @@
           var currentFrom   = (typeof fromDate     !== 'undefined') ? fromDate     : '';
           var currentTo     = (typeof toDate       !== 'undefined') ? toDate       : '';
           var usingDates    = !!(currentFrom || currentTo);
-
-          // Keep the status choice when switching date presets, and vice versa.
           var statusQs = currentStatus ? 'status=' + currentStatus : '';
           var dateQs   = usingDates
             ? [currentFrom ? 'from=' + currentFrom : '', currentTo ? 'to=' + currentTo : ''].filter(Boolean).join('&')
@@ -62,51 +70,36 @@
         %>
 
         <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
-
           <div>
             <div class="text-muted small fw-semibold mb-1">Status</div>
             <div class="btn-group" role="group" aria-label="Filter by status">
-              <a href="<%= link([dateQs]) %>"
-                 class="btn btn-sm <%= currentStatus === '' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
-              <a href="<%= link(['status=booked', dateQs]) %>"
-                 class="btn btn-sm <%= currentStatus === 'booked' ? 'btn-primary' : 'btn-outline-primary' %>">Booked</a>
-              <a href="<%= link(['status=completed', dateQs]) %>"
-                 class="btn btn-sm <%= currentStatus === 'completed' ? 'btn-primary' : 'btn-outline-primary' %>">Completed</a>
-              <a href="<%= link(['status=cancelled', dateQs]) %>"
-                 class="btn btn-sm <%= currentStatus === 'cancelled' ? 'btn-primary' : 'btn-outline-primary' %>">Cancelled</a>
+              <a href="<%= link([dateQs]) %>" class="btn btn-sm <%= currentStatus === '' ? 'btn-primary' : 'btn-outline-primary' %>">All</a>
+              <a href="<%= link(['status=booked', dateQs]) %>" class="btn btn-sm <%= currentStatus === 'booked' ? 'btn-primary' : 'btn-outline-primary' %>">Booked</a>
+              <a href="<%= link(['status=completed', dateQs]) %>" class="btn btn-sm <%= currentStatus === 'completed' ? 'btn-primary' : 'btn-outline-primary' %>">Completed</a>
+              <a href="<%= link(['status=cancelled', dateQs]) %>" class="btn btn-sm <%= currentStatus === 'cancelled' ? 'btn-primary' : 'btn-outline-primary' %>">Cancelled</a>
             </div>
           </div>
 
           <div>
             <div class="text-muted small fw-semibold mb-1">Date</div>
             <div class="btn-group" role="group" aria-label="Filter by date">
-              <a href="<%= link([statusQs]) %>"
-                 class="btn btn-sm <%= (!currentRange && !usingDates) ? 'btn-primary' : 'btn-outline-primary' %>">Any date</a>
-              <a href="<%= link([statusQs, 'range=today']) %>"
-                 class="btn btn-sm <%= currentRange === 'today' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Today</a>
-              <a href="<%= link([statusQs, 'range=week']) %>"
-                 class="btn btn-sm <%= currentRange === 'week' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Next 7 days</a>
-              <a href="<%= link([statusQs, 'range=upcoming']) %>"
-                 class="btn btn-sm <%= currentRange === 'upcoming' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Upcoming</a>
-              <a href="<%= link([statusQs, 'range=past']) %>"
-                 class="btn btn-sm <%= currentRange === 'past' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Past</a>
+              <a href="<%= link([statusQs]) %>" class="btn btn-sm <%= (!currentRange && !usingDates) ? 'btn-primary' : 'btn-outline-primary' %>">Any date</a>
+              <a href="<%= link([statusQs, 'range=today']) %>" class="btn btn-sm <%= currentRange === 'today' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Today</a>
+              <a href="<%= link([statusQs, 'range=week']) %>" class="btn btn-sm <%= currentRange === 'week' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Next 7 days</a>
+              <a href="<%= link([statusQs, 'range=upcoming']) %>" class="btn btn-sm <%= currentRange === 'upcoming' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Upcoming</a>
+              <a href="<%= link([statusQs, 'range=past']) %>" class="btn btn-sm <%= currentRange === 'past' && !usingDates ? 'btn-primary' : 'btn-outline-primary' %>">Past</a>
             </div>
           </div>
 
-          <!-- Explicit date range; overrides the quick presets above -->
           <form action="/appointments" method="GET" class="d-flex align-items-end gap-2">
-            <% if (currentStatus) { %>
-              <input type="hidden" name="status" value="<%= currentStatus %>">
-            <% } %>
+            <% if (currentStatus) { %><input type="hidden" name="status" value="<%= currentStatus %>"><% } %>
             <div>
               <label class="text-muted small fw-semibold mb-1 d-block" for="fromDate">From</label>
-              <input type="date" id="fromDate" name="from" value="<%= currentFrom %>"
-                     class="form-control form-control-sm">
+              <input type="date" id="fromDate" name="from" value="<%= currentFrom %>" class="form-control form-control-sm">
             </div>
             <div>
               <label class="text-muted small fw-semibold mb-1 d-block" for="toDate">To</label>
-              <input type="date" id="toDate" name="to" value="<%= currentTo %>"
-                     class="form-control form-control-sm">
+              <input type="date" id="toDate" name="to" value="<%= currentTo %>" class="form-control form-control-sm">
             </div>
             <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Apply</button>
             <% if (usingDates) { %>
@@ -118,9 +111,7 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
           <span class="text-muted small">
             Showing <strong><%= appointments ? appointments.length : 0 %></strong>
-            appointment<%= (appointments && appointments.length === 1) ? '' : 's' %><%
-              %><%= currentStatus ? ' · ' + currentStatus : '' %><%
-              %><% if (usingDates) { %> · <%= currentFrom || 'any' %> to <%= currentTo || 'any' %><% } %>
+            appointment<%= (appointments && appointments.length === 1) ? '' : 's' %><%= currentStatus ? ' · ' + currentStatus : '' %><% if (usingDates) { %> · <%= currentFrom || 'any' %> to <%= currentTo || 'any' %><% } %>
           </span>
         </div>
       <% } %>
@@ -158,11 +149,9 @@
                   <% } else { %>
                     <td><%= role === 'staff' ? (a.owner_name || '-') : (a.vet_name || '-') %></td>
                   <% } %>
+                  <td><%= prettyDateFromYMD(a.date) %></td>
                   <td>
-                    <%= a.date && a.date.toISOString ? a.date.toISOString().slice(0, 10) : a.date %>
-                  </td>
-                  <td>
-                    <% 
+                    <%
                       const timeStr = String(a.start_time || '');
                       const prettyTime = timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr;
                     %>
@@ -183,16 +172,12 @@
 
                     <% if (role === 'staff' && !admin && a.status === 'booked') { %>
                       <form action="/appointments/<%= a.id %>/complete" method="POST" class="d-inline ms-2">
-                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3">
-                          Mark Completed
-                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3">Mark Completed</button>
                       </form>
 
                       <form action="/appointments/<%= a.id %>/cancel" method="POST" class="d-inline ms-2"
                             onsubmit="return confirm('Cancel this appointment?');">
-                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
-                          Cancel
-                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Cancel</button>
                       </form>
                     <% } %>
                   </td>
@@ -204,17 +189,13 @@
                   <% if (role === 'staff' && (statusFilter || rangeFilter || fromDate || toDate)) { %>
                     No appointments match these filters.
                     <br/>
-                    <a href="/appointments" class="btn btn-outline-primary btn-sm mt-2 rounded-pill px-3">
-                      Clear filters
-                    </a>
+                    <a href="/appointments" class="btn btn-outline-primary btn-sm mt-2 rounded-pill px-3">Clear filters</a>
                   <% } else { %>
-                  No appointments found yet.
+                    No appointments found yet.
                   <% } %>
                   <% if (role === 'customer') { %>
                     <br/>
-                    <a href="/appointments/new" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
-                      📅 Book your first appointment
-                    </a>
+                    <a href="/appointments/new" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">📅 Book your first appointment</a>
                   <% } %>
                 </td>
               </tr>
