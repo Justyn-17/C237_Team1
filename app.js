@@ -10,6 +10,13 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Hosting platforms (Render, Heroku, Railway, …) terminate HTTPS at a proxy and
+// forward plain HTTP to this app. Trusting the proxy lets Express read the
+// X-Forwarded-Proto header, so it knows the original request was HTTPS and will
+// actually set the secure session cookie. Without this, the cookie is dropped on
+// the deployed site and login loops forever (works locally because there's no proxy).
+app.set('trust proxy', 1);
+
 // --- SECURITY GUIDELINES COMPLIANCE ---
 // Session Secret Management
 function getSecret() {
@@ -131,7 +138,10 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        // 'auto' (with trust proxy above) sends a secure cookie over HTTPS and a
+        // normal one over plain HTTP. This is robust in both places: secure on the
+        // deployed HTTPS site, still works on http://localhost — and never loops.
+        secure: 'auto',
         sameSite: 'lax',
         maxAge: 3600000
     }
