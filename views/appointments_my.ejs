@@ -4,36 +4,24 @@
   <%- include('partials/customer-sidebar', { activePage: 'appointments' }) %>
 
   <main class="app-main">
-
     <div class="app-content">
 
       <%
-        // Split into upcoming vs past so the list you care about sits at the top.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
+        // Split into upcoming (still booked) vs everything else, newest history first.
         const upcoming = [];
         const history = [];
 
         appointments.forEach(a => {
-          const when = new Date(a.date);
-          when.setHours(0, 0, 0, 0);
-          if (a.status === 'booked' && when >= today) upcoming.push(a);
+          if (a.status === 'booked') upcoming.push(a);
           else history.push(a);
         });
 
-        // Newest first for past visits
         history.reverse();
 
-        const prettyTime = t => {
-          const s = String(t || '');
-          return s.length >= 5 ? s.slice(0, 5) : s;
-        };
-
         const statusChip = s =>
-          s === 'booked'    ? 'chip-blue'  :
+          s === 'booked' ? 'chip-blue' :
           s === 'completed' ? 'chip-green' :
-          s === 'cancelled' ? 'chip-red'   : '';
+          s === 'cancelled' ? 'chip-red' : '';
       %>
 
       <div class="page-head">
@@ -46,7 +34,6 @@
         </a>
       </div>
 
-      <!-- Summary strip -->
       <div class="row g-3 mb-4">
         <div class="col-md-4">
           <div class="stat-card">
@@ -77,7 +64,6 @@
         </div>
       </div>
 
-      <!-- Upcoming -->
       <div class="panel mb-4">
         <div class="panel-head">
           <h6 class="panel-title">Upcoming Visits</h6>
@@ -111,8 +97,8 @@
                       <div class="text-muted small"><%= a.pet_species %></div>
                     </td>
                     <td><%= a.vet_name || '—' %></td>
-                    <td><%= new Date(a.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %></td>
-                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= formatDate(a.date, { weekday: true }) %></td>
+                    <td><%= formatTime(a.start_time) %></td>
                     <td><%= a.reason || '—' %></td>
                     <td class="text-end">
                       <div class="d-flex align-items-center justify-content-end gap-2">
@@ -124,14 +110,13 @@
                       </div>
                     </td>
                   </tr>
-                <% }); %>
+                <% }) %>
               </tbody>
             </table>
           </div>
         <% } %>
       </div>
 
-      <!-- History -->
       <div class="panel">
         <div class="panel-head">
           <h6 class="panel-title">Past &amp; Cancelled</h6>
@@ -164,14 +149,14 @@
                       <div class="text-muted small"><%= a.pet_species %></div>
                     </td>
                     <td><%= a.vet_name || '—' %></td>
-                    <td><%= new Date(a.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) %></td>
-                    <td><%= prettyTime(a.start_time) %></td>
+                    <td><%= formatDate(a.date, { weekday: true }) %></td>
+                    <td><%= formatTime(a.start_time) %></td>
                     <td><%= a.reason || '—' %></td>
                     <td class="text-end">
                       <span class="chip <%= statusChip(a.status) %> text-capitalize"><%= a.status %></span>
                     </td>
                   </tr>
-                <% }); %>
+                <% }) %>
               </tbody>
             </table>
           </div>

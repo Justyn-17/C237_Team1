@@ -36,6 +36,51 @@ app.locals.photoPath = function (photo) {
     return photo;
 };
 
+// Date/time formatting for views. The MySQL driver hands back DATE columns as JS
+// Date objects, so rendering them directly prints the raw
+// "Fri Jul 31 2026 00:00:00 GMT+0800 (...)" string. These helpers turn that into a
+// readable label, using LOCAL date parts (not toISOString/UTC, which would be off
+// by a day here since a DATE is parsed as local midnight).
+const _WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// formatDate(value, { weekday: true }) -> "Mon, 20 Jul 2026"  (weekday defaults off)
+app.locals.formatDate = function (value, opts) {
+    if (value === null || value === undefined || value === '') return '—';
+
+    let d;
+    if (value instanceof Date) {
+        d = value;
+    } else {
+        // Accept a "YYYY-MM-DD..." string and build a local calendar date from it,
+        // so a plain date string is never shifted by a timezone.
+        const ymd = String(value).slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+            const [y, m, day] = ymd.split('-').map(Number);
+            d = new Date(y, m - 1, day);
+        } else {
+            d = new Date(value);
+        }
+    }
+
+    if (isNaN(d.getTime())) return String(value);
+
+    const base = `${d.getDate()} ${_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    return (opts && opts.weekday) ? `${_WEEKDAYS[d.getDay()]}, ${base}` : base;
+};
+
+// formatTime("14:00:00") -> "2:00 PM"
+app.locals.formatTime = function (value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const m = String(value).match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return String(value);
+    let hours = parseInt(m[1], 10);
+    const minutes = m[2];
+    const meridiem = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${meridiem}`;
+};
+
 // `pets.age` stores decimals (0.5 = 6 months), so show young pets in months
 // rather than printing "0.5 yr".
 app.locals.formatAge = function (age) {
@@ -118,7 +163,8 @@ const dbConfig = {
     user: process.env.DB_USER || 'c237_023',
     password: process.env.DB_PASSWORD || 'c237023@2026!',
     database: process.env.DB_NAME || 'c237_023_team1_petcenter',
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    dateString: true
 };
 
 let db;
@@ -130,7 +176,7 @@ let rollbackAsync;
 
 function handleDisconnect() {
     db = mysql.createConnection(dbConfig);
-    
+
     // Bind the async transaction helpers to the new connection
     queryAsync = util.promisify(db.query).bind(db);
     beginTransactionAsync = util.promisify(db.beginTransaction).bind(db);
@@ -149,7 +195,7 @@ function handleDisconnect() {
     // Catch database errors to prevent the app from crashing on idle timeouts
     db.on('error', (err) => {
         console.error('Database connection error:', err);
-        if(err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
             console.log("Database connection dropped. Auto-reconnecting...");
             handleDisconnect();
         } else {
@@ -1649,11 +1695,114 @@ app.get('/appointments/new', requireRole('customer'), (req, res) => {
                 console.error("Error fetching vets for appointments:", err2);
                 return res.status(500).send("Database error");
             }
+            // No bookedTimes here; front-end JS will fetch them
             res.render('appointments_new', { pets, vets });
         });
     });
 });
 
+// API: return booked times for a vet + date as JSON (used by JS on /appointments/new)
+app.get('/api/appointments/slots', requireRole('customer'), (req, res) => {
+    const { vet_id, date } = req.query;
+
+    if (!vet_id || !date) {
+        return res.json({ bookedTimes: [] });
+    }
+
+    const sql = `
+        SELECT start_time
+        FROM appointments
+        WHERE vet_id = ?
+          AND date = ?
+          AND status <> 'cancelled'
+    `;
+
+    db.query(sql, [vet_id, date], (err, rows) => {
+        if (err) {
+            console.error('Error fetching booked slots:', err);
+            return res.status(500).json({ bookedTimes: [] });
+        }
+
+        const bookedTimes = rows.map(r => String(r.start_time)); // e.g. ['11:00:00']
+        res.json({ bookedTimes });
+    });
+});
+
+// Create appointment with conflict checking (single time slot)
+app.post('/appointments', requireRole('customer'), (req, res) => {
+    const { pet_id, vet_id, date, slot_time, reason } = req.body;
+
+    const owner_id = req.session.userId; // logged-in customer
+
+    if (!pet_id || !vet_id || !date || !slot_time) {
+        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
+    }
+
+    const start_time = slot_time;
+    const end_time = slot_time;
+
+    // Validate the selected vet is a real active staff user (not the system admin)
+    db.query(
+        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
+        [vet_id],
+        (errVet, vets) => {
+            if (errVet) {
+                console.error('Vet validation error:', errVet);
+                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
+            }
+            if (vets.length === 0) {
+                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
+            }
+
+            // Slots are discrete one-hour times: a slot clashes only with a
+            // non-cancelled booking for the SAME vet, date and start time.
+            const conflictSql = `
+                SELECT id
+                FROM appointments
+                WHERE vet_id = ?
+                  AND date = ?
+                  AND start_time = ?
+                  AND status <> 'cancelled'
+            `;
+
+            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
+                if (err) {
+                    console.error('Conflict check error:', err);
+                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
+                }
+
+                if (rows.length > 0) {
+                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
+                }
+
+                // Only book if the chosen pet belongs to the logged-in customer
+                const insertSql = `
+                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
+                    FROM pets WHERE id = ? AND owner_id = ?
+                `;
+                db.query(
+                    insertSql,
+                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
+                    (err2, result) => {
+                        if (err2) {
+                            console.error('Insert appointment error:', err2);
+                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
+                        }
+
+                        if (result.affectedRows === 0) {
+                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
+                        }
+
+                        res.redirect('/appointments/my');
+                    }
+                );
+            });
+        }
+    );
+});
+
+// (rest of your appointments routes stay the same: /appointments/my, /appointments, cancel, complete, etc.)
 // Create appointment with conflict checking (single time slot)
 app.post('/appointments', requireRole('customer'), (req, res) => {
     const { pet_id, vet_id, date, slot_time, reason } = req.body;

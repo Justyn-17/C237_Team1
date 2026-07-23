@@ -133,10 +133,10 @@
                                   <%= a.owner_name || '-' %>
                                 </td>
                                 <td>
-                                  <%= a.date && a.date.toISOString ? a.date.toISOString().slice(0, 10) : a.date %>
+                                  <%= formatDate(a.date) %>
                                 </td>
                                 <td>
-                                  <%= String(a.start_time || '' ).slice(0, 5) %>
+                                  <%= formatTime(a.start_time) %>
                                 </td>
                                 <td>
                                   <% if (a.status==='booked' ) { %>
@@ -247,6 +247,25 @@
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
           }[c]));
 
+          // Match the server-side formatDate/formatTime output. Uses LOCAL date
+          // parts so an ISO string from JSON isn't shifted a day by the timezone.
+          const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const fmtDate = (v) => {
+            if (!v) return '—';
+            const d = new Date(v);
+            if (isNaN(d.getTime())) return String(v);
+            return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
+          };
+          const fmtTime = (v) => {
+            if (!v) return '—';
+            const m = String(v).match(/^(\d{1,2}):(\d{2})/);
+            if (!m) return String(v);
+            let h = parseInt(m[1], 10);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m[2]} ${ampm}`;
+          };
+
           tbody.innerHTML = data.map(a => {
             // A missing pet_name means the pet record was deleted — show that
             // rather than a raw ID the staff can't do anything with.
@@ -254,8 +273,8 @@
               ? esc(a.pet_name)
               : '<span class="text-muted fst-italic">Deleted pet</span>';
             const ownerDisplay = a.owner_name ? esc(a.owner_name) : '-';
-            const dateStr = a.date ? (new Date(a.date)).toISOString().slice(0, 10) : a.date;
-            const timeStr = a.start_time ? String(a.start_time).slice(0, 5) : '';
+            const dateStr = fmtDate(a.date);
+            const timeStr = fmtTime(a.start_time);
 
             let statusBadge = '';
             if (a.status === 'booked') {
