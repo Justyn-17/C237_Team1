@@ -302,6 +302,13 @@
                 </a>
             </li>
             <% } %>
+            <% if (locals.username === 'admin') { %>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'system-health' ? 'active' : '' %>" href="/admin/system-health" title="System Analytics">
+                    <i class="bi bi-activity"></i> <span class="nav-link-label">System Analytics</span>
+                </a>
+            </li>
+            <% } %>
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'profile' ? 'active' : '' %>" href="/staff/profile" title="My Profile">
                     <i class="bi bi-person-circle"></i> <span class="nav-link-label">My Profile</span>

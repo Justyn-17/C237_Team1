@@ -1033,6 +1033,13 @@ app.post('/staff/reset-user/:id', async (req, res) => {
             db.query("UPDATE users SET password_hash = ?, temp_access_code = ?, requires_password_reset = true WHERE id = ?", [hashedPassword, accessCode, targetUserId], (err) => {
                 if (err) return res.status(500).send("Database error");
 
+                // Audit log: record the password reset action
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'PASSWORD_RESET', ?, ?)",
+                    [req.session.username, targetUser.username, `Temp code issued (first 4: ${accessCode.slice(0, 4)}…)`],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+
                 db.query("SELECT * FROM users", (err, users) => {
                     if (err) return res.status(500).send("Database error");
                     const activeTab = targetUser.role === 'customer' ? 'customers' : 'staff';
@@ -1070,24 +1077,50 @@ app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
 
 app.post('/cancel-deletion-request/:id', (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
-        if (err) {
-            console.error("Error canceling deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        const targetUsername = (!lookupErr && lookupRows.length > 0) ? lookupRows[0].username : `id:${targetId}`;
+        db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
+            if (err) {
+                console.error("Error canceling deletion:", err);
+                return res.status(500).send("Database error");
+            }
+            // Audit log
+            db.query(
+                "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_CANCELLED', ?, 'Deletion request reversed')",
+                [req.session.username || 'system', targetUsername],
+                (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+            );
+            res.redirect('/user-directory');
+        });
     });
 });
 
 // TODO(security): Implement CSRF protection for state-changing routes
 app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err) => {
-        if (err) {
-            console.error("Error approving deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    // Look up the target username first so we can rename it on delete
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        if (lookupErr || lookupRows.length === 0) return res.status(500).send("User not found.");
+        const originalUsername = lookupRows[0].username;
+        // Truncate to 50 chars before appending suffix to respect VARCHAR limits
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err) => {
+                if (err) {
+                    console.error("Error approving deletion:", err);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_APPROVED', ?, 'Customer account soft-deleted; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
+            }
+        );
     });
 });
 
@@ -1099,8 +1132,6 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
 
     const targetId = req.params.id;
 
-    // Prevent self-deletion if ID matches session (though we rely on username for the admin check)
-    // To be perfectly safe, we verify we aren't targeting the admin.
     db.query("SELECT username FROM users WHERE id = ?", [targetId], (err, results) => {
         if (err || results.length === 0) return res.status(500).send("User not found.");
 
@@ -1108,13 +1139,26 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
             return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting staff:", err2);
-                return res.status(500).send("Database error");
+        const originalUsername = results[0].username;
+        const deletedUsername  = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'staff'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting staff:", err2);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'STAFF_ACCOUNT_DELETED', ?, 'Staff account deleted by admin; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
             }
-            res.redirect('/user-directory');
-        });
+        );
     });
 });
 
@@ -1136,11 +1180,23 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
             return res.status(400).send("Bad Request: User is not a customer.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting customer:", err2);
-                return res.status(500).send("Database error");
-            }
+        const originalUsername = results[0].username;
+        const deletedUsername  = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting customer:", err2);
+                    return res.status(500).send("Database error");
+                }
+            // Audit log
+            db.query(
+                "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'CUSTOMER_ACCOUNT_DELETED', ?, 'Customer account hard-deleted by admin')",
+                [req.session.username, results[0].username],
+                (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+            );
             res.redirect('/user-directory');
         });
     });
@@ -2521,6 +2577,87 @@ app.post('/reset-password', async (req, res) => {
     } catch (err) {
         console.error('Error resetting password:', err);
         res.status(500).send('Internal Server Error');
+    }
+});
+
+
+
+// ==========================================
+// SUPER ADMIN: System Health Dashboard
+// ==========================================
+app.get('/admin/system-health', async (req, res) => {
+    // 1. Protect the route (Super Admin Only)
+    if (!req.session.username || req.session.username !== 'admin') {
+        return res.redirect('/login');
+    }
+
+    // 2. Parse query parameters for search, filter, and pagination
+    const LOGS_PER_PAGE  = 20;
+    const searchQuery    = (req.query.search || '').trim();
+    const selectedAction = (req.query.action || '').trim();
+    const currentPage    = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const offset         = (currentPage - 1) * LOGS_PER_PAGE;
+
+    // 3. Build dynamic WHERE clause for audit log queries
+    const whereClauses = [];
+    const whereParams  = [];
+
+    if (searchQuery) {
+        whereClauses.push("(actor LIKE ? OR target_user LIKE ? OR DATE_FORMAT(created_at, '%Y-%m-%d') LIKE ?)");
+        const likeVal = `%${searchQuery}%`;
+        whereParams.push(likeVal, likeVal, likeVal);
+    }
+    if (selectedAction && selectedAction !== 'ALL') {
+        whereClauses.push('action_type = ?');
+        whereParams.push(selectedAction);
+    }
+
+    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    try {
+        // 4. Run stat counts + audit COUNT + paginated audit rows concurrently
+        const [
+            customersResult,
+            staffResult,
+            deletionsResult,
+            totalLogResult,
+            auditLogs
+        ] = await Promise.all([
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role = 'customer' AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role IN ('staff', 'admin') AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE status = 'deletion_requested'"),
+            queryAsync(`SELECT COUNT(*) AS count FROM admin_audit_log ${whereSQL}`, whereParams),
+            queryAsync(
+                `SELECT id, created_at, actor, action_type, target_user, details
+                 FROM admin_audit_log
+                 ${whereSQL}
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?`,
+                [...whereParams, LOGS_PER_PAGE, offset]
+            )
+        ]);
+
+        const totalLogCount = totalLogResult[0].count;
+        const totalPages    = Math.max(1, Math.ceil(totalLogCount / LOGS_PER_PAGE));
+
+        // 5. Render the view with all data
+        res.render('system-health', {
+            user: req.session,
+            _active: 'system-health',
+            totalCustomers:   customersResult[0].count,
+            totalStaff:       staffResult[0].count,
+            pendingDeletions: deletionsResult[0].count,
+            auditLogs,
+            totalLogCount,
+            currentPage,
+            totalPages,
+            searchQuery,
+            selectedAction
+        });
+
+    } catch (err) {
+        console.error("Error loading System Health Dashboard:", err);
+        res.status(500).send("Internal Server Error while loading dashboard data.");
     }
 });
 
