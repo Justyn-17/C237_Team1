@@ -624,6 +624,263 @@ app.get('/api/recent-activity', requireRole('staff'), (req, res) => {
     });
 });
 
+// ==========================================
+// API: Clinic-Wide Appointment Volume Chart
+// GET /api/appointments/volume?timeframe=week|month|year|all-time
+// ==========================================
+app.get('/api/appointments/volume', requireRole('staff'), (req, res) => {
+    const timeframe = (req.query.timeframe || 'all-time').toLowerCase();
+
+    let sql, params = [];
+
+    if (timeframe === 'week') {
+        // Rolling 7-day window. DATE() strips the time component so today's
+        // freshly-booked appointments are always included regardless of the
+        // exact time the query runs.
+        sql = `
+            SELECT DATE(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE DATE(date) >= CURDATE() - INTERVAL 6 DAY
+              AND status <> 'cancelled'
+            GROUP BY DATE(date)
+            ORDER BY DATE(date)
+        `;
+    } else if (timeframe === 'month') {
+        // Current calendar month grouped by day-of-month
+        sql = `
+            SELECT DAY(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND MONTH(date) = MONTH(CURDATE())
+              AND status <> 'cancelled'
+            GROUP BY DAY(date)
+            ORDER BY DAY(date)
+        `;
+    } else if (timeframe === 'year') {
+        // Current year grouped by month number (1–12)
+        sql = `
+            SELECT MONTH(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND status <> 'cancelled'
+            GROUP BY MONTH(date)
+            ORDER BY MONTH(date)
+        `;
+    } else {
+        // All-time grouped by year+month
+        sql = `
+            SELECT DATE_FORMAT(date, '%Y-%m') AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE status <> 'cancelled'
+              AND date IS NOT NULL
+            GROUP BY DATE_FORMAT(date, '%Y-%m')
+            ORDER BY DATE_FORMAT(date, '%Y-%m')
+        `;
+    }
+
+    db.query(sql, params, (err, rows) => {
+        if (err) {
+            console.error('Error fetching appointment volume:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+        let labels = [];
+        let data   = [];
+
+        if (timeframe === 'week') {
+            // Normalise r.period to a YYYY-MM-DD string.
+            // The mysql npm package returns DATE() computed columns as JS Date
+            // objects (even with dateString:true), so we cannot use them directly
+            // as map keys — their toString() never matches an ISO string.
+            // We also build the loop key from LOCAL date parts (not toISOString)
+            // to avoid UTC-offset issues (e.g. toISOString returns yesterday
+            // before 08:00 in UTC+8).
+            const toLocalISO = (d) => {
+                const y  = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const dy = String(d.getDate()).padStart(2, '0');
+                return `${y}-${mo}-${dy}`;
+            };
+
+            const map = {};
+            rows.forEach(r => {
+                // Coerce to a reliable YYYY-MM-DD string whether r.period is a
+                // Date object or already a 'YYYY-MM-DD' string.
+                const key = (r.period instanceof Date)
+                    ? toLocalISO(r.period)
+                    : String(r.period).slice(0, 10);
+                map[key] = r.count;
+            });
+
+            // Build exactly 7 entries oldest-to-newest (AC3), zero-filling gaps (AC2)
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const iso   = toLocalISO(d);
+                const label = `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+                labels.push(label);
+                data.push(map[iso] || 0);
+            }
+        } else if (timeframe === 'month') {
+            // Days 1..N of the current month; fill gaps with 0
+            const now = new Date();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let d = 1; d <= daysInMonth; d++) {
+                labels.push(String(d));
+                data.push(map[d] || 0);
+            }
+        } else if (timeframe === 'year') {
+            // Jan–Dec; fill months with no data as 0
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let m = 1; m <= 12; m++) {
+                labels.push(MONTH_NAMES[m - 1]);
+                data.push(map[m] || 0);
+            }
+        } else {
+            // All-time: build readable "Mon YYYY" labels from YYYY-MM keys
+            rows.forEach(r => {
+                const [y, m] = String(r.period).split('-');
+                labels.push(`${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`);
+                data.push(r.count);
+            });
+        }
+
+        res.json({ labels, data });
+    });
+});
+
+// ==========================================
+// API: Per-Vet Appointment Volume Chart
+// GET /api/vet/appointments/volume?timeframe=week|month|year|all-time
+// ==========================================
+app.get('/api/vet/appointments/volume', requireRole('staff'), (req, res) => {
+    const timeframe = (req.query.timeframe || 'all-time').toLowerCase();
+    const vetId = req.session.userId;
+
+    let sql, params = [];
+
+    if (timeframe === 'week') {
+        // Rolling 7-day window — DATE() strips time-of-day so freshly booked
+        // appointments are included immediately.
+        sql = `
+            SELECT DATE(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE DATE(date) >= CURDATE() - INTERVAL 6 DAY
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY DATE(date)
+            ORDER BY DATE(date)
+        `;
+        params = [vetId];
+    } else if (timeframe === 'month') {
+        sql = `
+            SELECT DAY(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND MONTH(date) = MONTH(CURDATE())
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY DAY(date)
+            ORDER BY DAY(date)
+        `;
+        params = [vetId];
+    } else if (timeframe === 'year') {
+        sql = `
+            SELECT MONTH(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY MONTH(date)
+            ORDER BY MONTH(date)
+        `;
+        params = [vetId];
+    } else {
+        sql = `
+            SELECT DATE_FORMAT(date, '%Y-%m') AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE status <> 'cancelled'
+              AND date IS NOT NULL
+              AND vet_id = ?
+            GROUP BY DATE_FORMAT(date, '%Y-%m')
+            ORDER BY DATE_FORMAT(date, '%Y-%m')
+        `;
+        params = [vetId];
+    }
+
+    db.query(sql, params, (err, rows) => {
+        if (err) {
+            console.error('Error fetching vet appointment volume:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+        let labels = [];
+        let data   = [];
+
+        if (timeframe === 'week') {
+            // Same toLocalISO helper: avoids JS Date object key mismatch and
+            // UTC-offset day-boundary errors from toISOString().
+            const toLocalISO = (d) => {
+                const y  = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const dy = String(d.getDate()).padStart(2, '0');
+                return `${y}-${mo}-${dy}`;
+            };
+
+            const map = {};
+            rows.forEach(r => {
+                const key = (r.period instanceof Date)
+                    ? toLocalISO(r.period)
+                    : String(r.period).slice(0, 10);
+                map[key] = r.count;
+            });
+
+            // Exactly 7 entries oldest-to-newest, zero-filled
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const iso   = toLocalISO(d);
+                const label = `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+                labels.push(label);
+                data.push(map[iso] || 0);
+            }
+        } else if (timeframe === 'month') {
+            const now = new Date();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let d = 1; d <= daysInMonth; d++) {
+                labels.push(String(d));
+                data.push(map[d] || 0);
+            }
+        } else if (timeframe === 'year') {
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let m = 1; m <= 12; m++) {
+                labels.push(MONTH_NAMES[m - 1]);
+                data.push(map[m] || 0);
+            }
+        } else {
+            rows.forEach(r => {
+                const [y, m] = String(r.period).split('-');
+                labels.push(`${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`);
+                data.push(r.count);
+            });
+        }
+
+        res.json({ labels, data });
+    });
+});
+
 // Vet Dashboard: a single vet's own patients and appointments
 app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
     if (req.session.username === 'admin') return res.redirect('/staff-dashboard');
