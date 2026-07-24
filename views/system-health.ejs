@@ -166,16 +166,9 @@
 
                                                     <!-- Date & Time -->
                                                     <td class="py-3">
-                                                        <span class="text-dark fw-semibold d-block" style="font-size:0.87rem;">
-                                                            <%= typeof formatDate === 'function'
-                                                                ? formatDate(log.created_at, { weekday: false })
-                                                                : new Date(log.created_at).toLocaleDateString() %>
-                                                        </span>
-                                                        <span class="text-muted" style="font-size:0.78rem;">
-                                                            <%= typeof formatTime === 'function'
-                                                                ? formatTime(String(log.created_at).slice(11, 19))
-                                                                : new Date(log.created_at).toLocaleTimeString() %>
-                                                        </span>
+                                                        <%= new Date(log.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                                                        <br>
+                                                        <small class="text-muted"><%= new Date(log.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %></small>
                                                     </td>
 
                                                     <!-- Actor -->
