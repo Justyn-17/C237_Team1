@@ -1065,10 +1065,6 @@ app.post('/staff/reset-user/:id', async (req, res) => {
 });
 
 
-// Staff: System settings
-app.get('/staff/settings', requireRole('staff'), (req, res) => {
-    res.render('settings-coming-soon');
-});
 
 // ==========================================
 // SOFT DELETE WORKFLOW
