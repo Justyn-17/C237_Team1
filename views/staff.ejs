@@ -18,11 +18,9 @@
                 <div>
                     <strong>Warning:</strong> You have <%= remainingCodes %> master recovery codes remaining. Please generate a new set to avoid losing access to your account.
                 </div>
-                <form action="/regenerate-recovery-codes" method="POST" class="m-0">
-                    <button type="submit" class="btn btn-outline-danger btn-sm fw-bold">
-                        Generate New Codes
-                    </button>
-                </form>
+                <a href="/staff/profile" class="btn btn-outline-danger btn-sm fw-bold">
+                    Generate New Codes
+                </a>
             </div>
           <% } %>
 

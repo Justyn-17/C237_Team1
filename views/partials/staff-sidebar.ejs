@@ -237,7 +237,10 @@
         </script>
 
         <div class="sidebar-header">
-            <span class="sidebar-brand">🐾 PetCenter</span>
+            <span class="sidebar-brand d-inline-flex align-items-center gap-2">
+                <img src="/img/Logo.png" alt="PetWell" style="height:50px;width:auto;border-radius:8px;background:#fff;padding:3px;">
+                PetWell
+            </span>
             <button class="sidebar-toggle" id="sidebarToggleBtn" title="Toggle Sidebar">
                 <i class="bi bi-layout-sidebar-inset"></i>
             </button>
@@ -280,11 +283,7 @@
                     <i class="bi bi-heart-pulse-fill"></i> <span class="nav-link-label">Pet Records</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link <%= _active === 'settings' ? 'active' : '' %>" href="/staff/settings" title="System Settings">
-                    <i class="bi bi-gear-fill"></i> <span class="nav-link-label">System Settings</span>
-                </a>
-            </li>
+
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'reminders' ? 'active' : '' %>" href="/staff/reminders" title="Care Reminders">
                     <i class="bi bi-bell-fill"></i> <span class="nav-link-label">Care Reminders</span>
@@ -299,6 +298,13 @@
             <li class="nav-item">
                 <a class="nav-link <%= _active === 'expenses' ? 'active' : '' %>" href="/staff/expenses" title="Expense Log">
                     <i class="bi bi-cash-coin"></i> <span class="nav-link-label">Expense Log</span>
+                </a>
+            </li>
+            <% } %>
+            <% if (locals.username === 'admin') { %>
+            <li class="nav-item">
+                <a class="nav-link <%= _active === 'system-health' ? 'active' : '' %>" href="/admin/system-health" title="System Analytics">
+                    <i class="bi bi-activity"></i> <span class="nav-link-label">System Analytics</span>
                 </a>
             </li>
             <% } %>

@@ -8,7 +8,14 @@ const fs = require('fs');
 const multer = require('multer');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// Hosting platforms (Render, Heroku, Railway, …) terminate HTTPS at a proxy and
+// forward plain HTTP to this app. Trusting the proxy lets Express read the
+// X-Forwarded-Proto header, so it knows the original request was HTTPS and will
+// actually set the secure session cookie. Without this, the cookie is dropped on
+// the deployed site and login loops forever (works locally because there's no proxy).
+app.set('trust proxy', 1);
 
 // --- SECURITY GUIDELINES COMPLIANCE ---
 // Session Secret Management
@@ -131,7 +138,10 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        // 'auto' (with trust proxy above) sends a secure cookie over HTTPS and a
+        // normal one over plain HTTP. This is robust in both places: secure on the
+        // deployed HTTPS site, still works on http://localhost — and never loops.
+        secure: 'auto',
         sameSite: 'lax',
         maxAge: 3600000
     }
@@ -1324,7 +1334,8 @@ app.get('/user-directory', requireRole('staff'), (req, res) => {
             users: results,
             currentUser: { username: req.session.username, role: req.session.role },
             accessCode: null,
-            newUsername: null
+            newUsername: null,
+            activeTab: req.query.tab
         });
     });
 });
@@ -1622,6 +1633,13 @@ app.post('/staff/reset-user/:id', async (req, res) => {
             db.query("UPDATE users SET password_hash = ?, temp_access_code = ?, requires_password_reset = true WHERE id = ?", [hashedPassword, accessCode, targetUserId], (err) => {
                 if (err) return res.status(500).send("Database error");
 
+                // Audit log: record the password reset action
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'PASSWORD_RESET', ?, ?)",
+                    [req.session.username, targetUser.username, `Temp code issued (first 4: ${accessCode.slice(0, 4)}…)`],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+
                 db.query("SELECT * FROM users", (err, users) => {
                     if (err) return res.status(500).send("Database error");
                     const activeTab = targetUser.role === 'customer' ? 'customers' : 'staff';
@@ -1636,10 +1654,6 @@ app.post('/staff/reset-user/:id', async (req, res) => {
 });
 
 
-// Staff: System settings
-app.get('/staff/settings', requireRole('staff'), (req, res) => {
-    res.render('settings-coming-soon');
-});
 
 // ==========================================
 // SOFT DELETE WORKFLOW
@@ -1659,24 +1673,50 @@ app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
 
 app.post('/cancel-deletion-request/:id', (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
-        if (err) {
-            console.error("Error canceling deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        const targetUsername = (!lookupErr && lookupRows.length > 0) ? lookupRows[0].username : `id:${targetId}`;
+        db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
+            if (err) {
+                console.error("Error canceling deletion:", err);
+                return res.status(500).send("Database error");
+            }
+            // Audit log
+            db.query(
+                "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_CANCELLED', ?, 'Deletion request reversed')",
+                [req.session.username || 'system', targetUsername],
+                (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+            );
+            res.redirect('/user-directory?tab=customers');
+        });
     });
 });
 
 // TODO(security): Implement CSRF protection for state-changing routes
 app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err) => {
-        if (err) {
-            console.error("Error approving deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    // Look up the target username first so we can rename it on delete
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        if (lookupErr || lookupRows.length === 0) return res.status(500).send("User not found.");
+        const originalUsername = lookupRows[0].username;
+        // Truncate to 50 chars before appending suffix to respect VARCHAR limits
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err) => {
+                if (err) {
+                    console.error("Error approving deletion:", err);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_APPROVED', ?, 'Customer account soft-deleted; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory?tab=customers');
+            }
+        );
     });
 });
 
@@ -1688,8 +1728,6 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
 
     const targetId = req.params.id;
 
-    // Prevent self-deletion if ID matches session (though we rely on username for the admin check)
-    // To be perfectly safe, we verify we aren't targeting the admin.
     db.query("SELECT username FROM users WHERE id = ?", [targetId], (err, results) => {
         if (err || results.length === 0) return res.status(500).send("User not found.");
 
@@ -1697,13 +1735,26 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
             return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting staff:", err2);
-                return res.status(500).send("Database error");
+        const originalUsername = results[0].username;
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'staff'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting staff:", err2);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'STAFF_ACCOUNT_DELETED', ?, 'Staff account deleted by admin; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
             }
-            res.redirect('/user-directory');
-        });
+        );
     });
 });
 
@@ -1725,13 +1776,25 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
             return res.status(400).send("Bad Request: User is not a customer.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting customer:", err2);
-                return res.status(500).send("Database error");
-            }
-            res.redirect('/user-directory');
-        });
+        const originalUsername = results[0].username;
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting customer:", err2);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'CUSTOMER_ACCOUNT_DELETED', ?, 'Customer account hard-deleted by admin')",
+                    [req.session.username, results[0].username],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
+            });
     });
 });
 
@@ -2327,79 +2390,24 @@ app.post('/appointments', requireRole('customer'), (req, res) => {
         return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
-    const start_time = slot_time;
-    const end_time = slot_time;
+    // Reject bookings in the past. The browser sets a min date, but never trust it —
+    // a past date, or a time that already passed today, must be blocked here too.
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-    // Validate the selected vet is a real active staff user (not the system admin)
-    db.query(
-        "SELECT id FROM users WHERE id = ? AND role = 'staff' AND status = 'active' AND username <> 'admin'",
-        [vet_id],
-        (errVet, vets) => {
-            if (errVet) {
-                console.error('Vet validation error:', errVet);
-                return res.status(500).send("Unexpected error. <a href='/appointments/new'>Go back</a>");
-            }
-            if (vets.length === 0) {
-                return res.status(400).send("Invalid vet selected. <a href='/appointments/new'>Go back</a>");
-            }
-
-            // Slots are discrete one-hour times: a slot clashes only with a
-            // non-cancelled booking for the SAME vet, date and start time.
-            const conflictSql = `
-                SELECT id
-                FROM appointments
-                WHERE vet_id = ?
-                  AND date = ?
-                  AND start_time = ?
-                  AND status <> 'cancelled'
-            `;
-
-            db.query(conflictSql, [vet_id, date, start_time], (err, rows) => {
-                if (err) {
-                    console.error('Conflict check error:', err);
-                    return res.status(500).send("Unexpected error while checking availability. <a href='/appointments/new'>Go back</a>");
-                }
-
-                if (rows.length > 0) {
-                    return res.status(400).send("This time slot is already booked for this vet. <a href='/appointments/new'>Choose another slot</a>");
-                }
-
-                // Only book if the chosen pet belongs to the logged-in customer
-                const insertSql = `
-                    INSERT INTO appointments (pet_id, owner_id, vet_id, date, start_time, end_time, reason, status)
-                    SELECT ?, ?, ?, ?, ?, ?, ?, 'booked'
-                    FROM pets WHERE id = ? AND owner_id = ?
-                `;
-                db.query(
-                    insertSql,
-                    [pet_id, owner_id, vet_id, date, start_time, end_time, reason, pet_id, owner_id],
-                    (err2, result) => {
-                        if (err2) {
-                            console.error('Insert appointment error:', err2);
-                            return res.status(500).send("Could not book appointment. <a href='/appointments/new'>Try again</a>");
-                        }
-
-                        if (result.affectedRows === 0) {
-                            return res.status(400).send("Invalid pet selected. <a href='/appointments/new'>Go back</a>");
-                        }
-
-                        res.redirect('/appointments/my');
-                    }
-                );
-            });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).send("Please choose a valid date. <a href='/appointments/new'>Go back</a>");
+    }
+    if (date < todayStr) {
+        return res.status(400).send("You can't book an appointment in the past. <a href='/appointments/new'>Pick a future date</a>");
+    }
+    if (date === todayStr) {
+        const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        // slot_time is "HH:00:00"; a same-format string compare is safe here.
+        if (String(slot_time) <= nowTime) {
+            return res.status(400).send("That time slot has already passed today. <a href='/appointments/new'>Pick a later slot</a>");
         }
-    );
-});
-
-// (rest of your appointments routes stay the same: /appointments/my, /appointments, cancel, complete, etc.)
-// Create appointment with conflict checking (single time slot)
-app.post('/appointments', requireRole('customer'), (req, res) => {
-    const { pet_id, vet_id, date, slot_time, reason } = req.body;
-
-    const owner_id = req.session.userId; // logged-in customer
-
-    if (!pet_id || !vet_id || !date || !slot_time) {
-        return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
     }
 
     const start_time = slot_time;
@@ -3041,12 +3049,12 @@ app.post('/regenerate-recovery-codes', async (req, res) => {
 
         const { currentPassword } = req.body;
         if (!currentPassword) {
-            return res.status(400).send("Password is required.");
+            return res.redirect('/staff/profile?error=password_required');
         }
 
         const isMatch = await bcrypt.compare(currentPassword, users[0].password_hash);
         if (!isMatch) {
-            return res.status(401).send("Incorrect password. Action denied.");
+            return res.redirect('/staff/profile?error=incorrect_password');
         }
 
         await beginTransactionAsync();
@@ -3113,12 +3121,91 @@ app.post('/reset-password', async (req, res) => {
     }
 });
 
-// Removed duplicate status update route
+
+
+// ==========================================
+// SUPER ADMIN: System Health Dashboard
+// ==========================================
+app.get('/admin/system-health', async (req, res) => {
+    // 1. Protect the route (Super Admin Only)
+    if (!req.session.username || req.session.username !== 'admin') {
+        return res.redirect('/login');
+    }
+
+    // 2. Parse query parameters for search, filter, and pagination
+    const LOGS_PER_PAGE = 20;
+    const searchQuery = (req.query.search || '').trim();
+    const selectedAction = (req.query.action || '').trim();
+    const currentPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const offset = (currentPage - 1) * LOGS_PER_PAGE;
+
+    // 3. Build dynamic WHERE clause for audit log queries
+    const whereClauses = [];
+    const whereParams = [];
+
+    if (searchQuery) {
+        whereClauses.push("(actor LIKE ? OR target_user LIKE ? OR DATE_FORMAT(created_at, '%Y-%m-%d') LIKE ?)");
+        const likeVal = `%${searchQuery}%`;
+        whereParams.push(likeVal, likeVal, likeVal);
+    }
+    if (selectedAction && selectedAction !== 'ALL') {
+        whereClauses.push('action_type = ?');
+        whereParams.push(selectedAction);
+    }
+
+    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    try {
+        // 4. Run stat counts + audit COUNT + paginated audit rows concurrently
+        const [
+            customersResult,
+            staffResult,
+            deletionsResult,
+            totalLogResult,
+            auditLogs
+        ] = await Promise.all([
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role = 'customer' AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role IN ('staff', 'admin') AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE status = 'deletion_requested'"),
+            queryAsync(`SELECT COUNT(*) AS count FROM admin_audit_log ${whereSQL}`, whereParams),
+            queryAsync(
+                `SELECT id, created_at, actor, action_type, target_user, details
+                 FROM admin_audit_log
+                 ${whereSQL}
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?`,
+                [...whereParams, LOGS_PER_PAGE, offset]
+            )
+        ]);
+
+        const totalLogCount = totalLogResult[0].count;
+        const totalPages = Math.max(1, Math.ceil(totalLogCount / LOGS_PER_PAGE));
+
+        // 5. Render the view with all data
+        res.render('system-health', {
+            user: req.session,
+            _active: 'system-health',
+            totalCustomers: customersResult[0].count,
+            totalStaff: staffResult[0].count,
+            pendingDeletions: deletionsResult[0].count,
+            auditLogs,
+            totalLogCount,
+            currentPage,
+            totalPages,
+            searchQuery,
+            selectedAction
+        });
+
+    } catch (err) {
+        console.error("Error loading System Health Dashboard:", err);
+        res.status(500).send("Internal Server Error while loading dashboard data.");
+    }
+});
 
 // ==========================================
 // Start Server
 // ==========================================
 
-app.listen(PORT, '127.0.0.1', () => {
-    console.log(`Server running on http://127.0.0.1:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
 });
