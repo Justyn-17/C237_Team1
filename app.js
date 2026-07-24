@@ -745,7 +745,8 @@ app.get('/user-directory', requireRole('staff'), (req, res) => {
             users: results,
             currentUser: { username: req.session.username, role: req.session.role },
             accessCode: null,
-            newUsername: null
+            newUsername: null,
+            activeTab: req.query.tab
         });
     });
 });
@@ -1100,7 +1101,7 @@ app.post('/cancel-deletion-request/:id', (req, res) => {
                 [req.session.username || 'system', targetUsername],
                 (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
             );
-            res.redirect('/user-directory');
+            res.redirect('/user-directory?tab=customers');
         });
     });
 });
@@ -1128,7 +1129,7 @@ app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
                     [req.session.username, originalUsername],
                     (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
                 );
-                res.redirect('/user-directory');
+                res.redirect('/user-directory?tab=customers');
             }
         );
     });
@@ -2463,12 +2464,12 @@ app.post('/regenerate-recovery-codes', async (req, res) => {
 
         const { currentPassword } = req.body;
         if (!currentPassword) {
-            return res.status(400).send("Password is required.");
+            return res.redirect('/staff/profile?error=password_required');
         }
 
         const isMatch = await bcrypt.compare(currentPassword, users[0].password_hash);
         if (!isMatch) {
-            return res.status(401).send("Incorrect password. Action denied.");
+            return res.redirect('/staff/profile?error=incorrect_password');
         }
 
         await beginTransactionAsync();
