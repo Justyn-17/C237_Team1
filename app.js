@@ -1838,7 +1838,7 @@ app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
             const amount = "50.00";
 
             // Redirect to the invoice form, fully pre-filled
-            res.redirect(`/staff/invoices/new?owner_id=${appt.owner_id}&pet_id=${appt.pet_id}&title=${title}&category=${category}&amount=${amount}`);
+            res.redirect(`/staff/invoices/new?owner_id=${appt.owner_id}&pet_id=${appt.pet_id}&title=${title}&category=${category}&amount=${amount}&appt_id=${appointmentId}`);
         });
     });
 });
@@ -1850,7 +1850,31 @@ app.post('/appointments/:id/complete', requireRole('staff'), (req, res) => {
 app.get('/notifications', requireRole('customer'), (req, res) => {
     db.query("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC", [req.session.userId], (err, notifications) => {
         if (err) return res.status(500).send("Database error");
-        res.render('notifications', { notifications });
+        
+        db.query("SELECT * FROM invoices WHERE owner_id = ? AND status = 'pending'", [req.session.userId], (err, pendingInvoices) => {
+            if (err) return res.status(500).send("Database error fetching invoices");
+            
+            pendingInvoices.forEach(invoice => {
+                const dueDate = new Date(invoice.created_at);
+                dueDate.setDate(dueDate.getDate() + 14);
+                
+                const timeDiff = dueDate.getTime() - Date.now();
+                const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+                
+                if (daysDiff <= 3) {
+                    const dynamicNotif = {
+                        id: 'dynamic-' + invoice.id,
+                        message: '⚠️ Reminder: Invoice "' + invoice.title + '" for $' + Number(invoice.amount).toFixed(2) + ' is due on ' + dueDate.toLocaleDateString(),
+                        created_at: new Date(),
+                        is_dynamic: true,
+                        is_read: false
+                    };
+                    notifications.unshift(dynamicNotif);
+                }
+            });
+            
+            res.render('notifications', { notifications });
+        });
     });
 });
 
@@ -1863,6 +1887,24 @@ app.post('/notifications/:id/read', requireRole('customer'), (req, res) => {
 app.post('/notifications/:id/delete', requireRole('customer'), (req, res) => {
     db.query("DELETE FROM notifications WHERE id = ? AND user_id = ?", [req.params.id, req.session.userId], (err) => {
         res.redirect('/notifications');
+    });
+});
+
+// ---------- Staff: Cancel Invoice Creation & Revert Appointment ----------
+app.get('/appointments/:id/cancel-invoice', requireRole('staff'), (req, res) => {
+    const appointmentId = req.params.id;
+    
+    if (!appointmentId || appointmentId === 'undefined') {
+        return res.redirect('/appointments');
+    }
+    
+    // Check your DB schema if 'Booked' needs to be lowercase 'booked'. 
+    // Using 'Booked' based on the frontend UI status tags.
+    db.query("UPDATE appointments SET status = 'Booked' WHERE id = ?", [appointmentId], (err) => {
+        if (err) {
+            console.error("SQL Error reverting appointment:", err.message);
+        }
+        res.redirect('/appointments');
     });
 });
 

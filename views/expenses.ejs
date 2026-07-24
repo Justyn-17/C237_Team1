@@ -13,22 +13,45 @@
                 </div>
             </div>
 
-            <div class="row mb-4">
-                <div class="col-12 d-flex justify-content-center">
-                    <div class="panel w-100" style="max-width: 600px;">
-                        <div class="panel-head justify-content-center border-bottom-0 pb-0">
-                            <h2 class="panel-title">This Month's Spending Breakdown</h2>
-                        </div>
-                        <div class="panel-body d-flex justify-content-center align-items-center" style="min-height: 250px;">
-                            <% if (aggData && aggData.length > 0) { %>
-                                <div style="width: 250px; height: 250px;">
-                                    <canvas id="spendingPieChart"></canvas>
-                                </div>
-                            <% } else { %>
-                                <p class="text-muted text-center mb-0">No paid expenses recorded this month.</p>
-                            <% } %>
-                        </div>
+            <div class="card shadow-sm border-0 rounded-4 mb-4 p-4 p-md-5">
+                <div class="row align-items-center">
+                    <div class="col-12 mb-4">
+                        <h2 class="panel-title text-center text-md-start mb-0">This Month's Spending Breakdown</h2>
                     </div>
+                    <% if (aggData && aggData.length > 0) { %>
+                        <div class="col-md-5 d-flex justify-content-center mb-4 mb-md-0">
+                            <div style="position: relative; width: 100%; max-width: 240px; height: 240px;">
+                                <canvas id="spendingPieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <% 
+                                const bgColors = ['#14B8A6', '#0EA5E9', '#F43F5E', '#F59E0B', '#10B981', '#3B82F6', '#FB923C', '#8B5CF6'];
+                                let totalSpend = 0;
+                                aggData.forEach(d => { totalSpend += Number(d.total); });
+                            %>
+                            <div class="d-flex flex-column gap-3">
+                                <% aggData.forEach((category, index) => { 
+                                    let percentage = totalSpend > 0 ? ((Number(category.total) / totalSpend) * 100).toFixed(1) : 0;
+                                    let color = bgColors[index % bgColors.length];
+                                %>
+                                    <div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="fw-semibold text-dark"><%= category.category %></span>
+                                            <span class="fw-bold text-dark">$<%= Number(category.total).toFixed(2) %></span>
+                                        </div>
+                                        <div class="progress" style="height: 4px;">
+                                            <div class="progress-bar" role="progressbar" style="width: <%= percentage %>%; background-color: <%= color %>;" aria-valuenow="<%= percentage %>" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% } else { %>
+                        <div class="col-12">
+                            <p class="text-muted text-center mb-0">No paid expenses recorded this month.</p>
+                        </div>
+                    <% } %>
                 </div>
             </div>
 
@@ -78,45 +101,103 @@
                 <% } %>
             </div>
 
-            <!-- Paid Expense Log -->
-            <div class="panel">
-                <div class="panel-head flex-wrap">
-                    <h2 class="panel-title">Paid Expense Log</h2>
+            <!-- Expense Log Section -->
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white border-0 pt-4 pb-0 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-secondary"></i>Paid Expense Log</h5>
+                    
+                    <!-- Filters -->
+                    <div class="d-flex gap-2">
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                            <input type="text" id="expenseSearch" class="form-control bg-light border-start-0 ps-0" placeholder="Search...">
+                        </div>
+                        <select id="expenseCategory" class="form-select form-select-sm bg-light" style="width: auto;">
+                            <option value="all">All Categories</option>
+                            <option value="vet visit">Vet Visit</option>
+                            <option value="medication">Medication</option>
+                            <option value="food">Food</option>
+                            <option value="grooming">Grooming</option>
+                            <option value="boarding">Boarding</option>
+                            <option value="insurance">Insurance</option>
+                            <option value="toys & accessories">Toys & Accessories</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
                 </div>
 
-                <% if (expenses && expenses.length === 0) { %>
-                    <div class="empty-state">
-                        <span class="empty-emoji">🐾</span>
-                        <h6>No expenses logged</h6>
-                        <p>No paid invoices yet.</p>
-                    </div>
-                <% } else if (expenses) { %>
-                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                        <table class="app-table">
-                            <thead>
-                                <tr>
-                                    <th>Date Paid</th>
-                                    <th>Category</th>
-                                    <th>Pet</th>
-                                    <th>Description</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% expenses.forEach(exp => { %>
+                <div class="card-body p-0 mt-3">
+                    <% if (expenses && expenses.length === 0) { %>
+                        <div class="empty-state py-5 text-center">
+                            <span class="empty-emoji fs-1">🐾</span>
+                            <h6 class="fw-bold mt-3">No paid expenses yet</h6>
+                            <p class="text-secondary mb-0">When you pay an invoice, it will automatically appear here.</p>
+                        </div>
+                    <% } else if (expenses) { %>
+                        <!-- Scrollable wrapper to prevent stacking -->
+                        <div style="max-height: 400px; overflow-y: auto;" class="border-top">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="bg-white sticky-top shadow-sm" style="z-index: 1;">
                                     <tr>
-                                        <td><%= new Date(exp.expense_date).toLocaleDateString() %></td>
-                                        <td><span class="chip chip-teal"><%= exp.category %></span></td>
-                                        <td><%= exp.pet_name || '—' %></td>
-                                        <td><%= exp.description || '—' %></td>
-                                        <td class="fw-semibold">$<%= Number(exp.amount).toFixed(2) %></td>
+                                        <th class="px-4 py-3 text-secondary small">Date Paid</th>
+                                        <th class="py-3 text-secondary small">Category</th>
+                                        <th class="py-3 text-secondary small">Description</th>
+                                        <th class="py-3 text-secondary small">Pet</th>
+                                        <th class="px-4 py-3 text-secondary small text-end">Amount</th>
                                     </tr>
-                                <% }) %>
-                            </tbody>
-                        </table>
-                    </div>
-                <% } %>
+                                </thead>
+                                <tbody id="expenseTableBody">
+                                    <% expenses.forEach(exp => { %>
+                                        <!-- Data attribute added for easy category filtering -->
+                                        <tr class="expense-row" data-category="<%= exp.category.toLowerCase() %>">
+                                            <td class="px-4"><%= new Date(exp.expense_date).toLocaleDateString() %></td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border"><%= exp.category %></span>
+                                            </td>
+                                            <td class="searchable-text"><%= exp.description %></td>
+                                            <td class="searchable-text"><%= exp.pet_name || '—' %></td>
+                                            <td class="px-4 fw-bold text-success text-end">$<%= Number(exp.amount).toFixed(2) %></td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } %>
+                </div>
             </div>
+            
+            <!-- Real-time Filtering Script -->
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const searchInput = document.getElementById('expenseSearch');
+                    const categorySelect = document.getElementById('expenseCategory');
+                    const rows = document.querySelectorAll('.expense-row');
+
+                    function filterTable() {
+                        if (!searchInput || !categorySelect) return;
+                        
+                        const searchTerm = searchInput.value.toLowerCase();
+                        const selectedCategory = categorySelect.value;
+
+                        rows.forEach(row => {
+                            const rowCategory = row.getAttribute('data-category');
+                            const rowText = row.innerText.toLowerCase();
+                            
+                            const matchesSearch = rowText.includes(searchTerm);
+                            const matchesCategory = selectedCategory === 'all' || rowCategory === selectedCategory;
+
+                            if (matchesSearch && matchesCategory) {
+                                row.style.display = '';
+                            } else {
+                                row.style.display = 'none';
+                            }
+                        });
+                    }
+
+                    if (searchInput) searchInput.addEventListener('input', filterTable);
+                    if (categorySelect) categorySelect.addEventListener('change', filterTable);
+                });
+            </script>
 
         </div>
     </div>
@@ -137,21 +218,28 @@
         
         const labels = rawData.map(d => d.category);
         const data = rawData.map(d => d.total);
-        const bgColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED', '#8A2BE2'];
+        const bgColors = ['#14B8A6', '#0EA5E9', '#F43F5E', '#F59E0B', '#10B981', '#3B82F6', '#FB923C', '#8B5CF6'];
         
         new Chart(ctx, {
-            type: 'pie',
+            type: 'doughnut',
             data: {
                 labels: labels,
                 datasets: [{
                     data: data,
                     backgroundColor: bgColors.slice(0, data.length),
-                    borderWidth: 1
+                    borderWidth: 1,
+                    hoverOffset: 4
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
             }
         });
     });

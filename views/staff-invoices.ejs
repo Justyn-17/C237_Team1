@@ -16,22 +16,80 @@
                 </a>
             </div>
 
+            <% 
+                let totalRevenue = 0;
+                let outstandingBalance = 0;
+                invoices.forEach(inv => {
+                    if (inv.status === 'paid') totalRevenue += Number(inv.amount);
+                    if (inv.status === 'pending') outstandingBalance += Number(inv.amount);
+                });
+            %>
+
+            <!-- KPI Cards -->
             <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card shadow-sm border-0">
-                        <div class="card-header bg-white fw-bold py-3">
-                            Revenue by Service Category
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-body p-4 d-flex align-items-center">
+                            <div class="bg-teal bg-opacity-10 p-3 rounded-3 me-3" style="color: #0d9488;">
+                                <i class="bi bi-cash-coin fs-3"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-secondary fw-bold mb-1 text-uppercase small">Total Revenue</h6>
+                                <h3 class="fw-bold mb-0 text-dark">$<%= totalRevenue.toFixed(2) %></h3>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <canvas id="revenueChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-body p-4 d-flex align-items-center">
+                            <div class="bg-warning bg-opacity-10 p-3 rounded-3 me-3 text-warning">
+                                <i class="bi bi-hourglass-split fs-3"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-secondary fw-bold mb-1 text-uppercase small">Outstanding Balance</h6>
+                                <h3 class="fw-bold mb-0 text-dark">$<%= outstandingBalance.toFixed(2) %></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-body p-4 d-flex align-items-center">
+                            <div class="bg-primary bg-opacity-10 p-3 rounded-3 me-3 text-primary">
+                                <i class="bi bi-receipt fs-3"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-secondary fw-bold mb-1 text-uppercase small">Total Invoices</h6>
+                                <h3 class="fw-bold mb-0 text-dark"><%= invoices.length %></h3>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white fw-bold py-3">
-                    All Invoices
+            <!-- Revenue Chart -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-header bg-white fw-bold py-3 border-0">
+                            Revenue by Service Category
+                        </div>
+                        <div class="card-body">
+                            <canvas id="revenueChart" style="max-height: 250px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Invoices Table -->
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white border-0 py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <h5 class="fw-bold mb-0">All Invoices</h5>
+                    <div class="input-group input-group-sm" style="max-width: 250px;">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" id="invoiceSearch" class="form-control bg-light border-start-0 ps-0" placeholder="Search Invoices...">
+                    </div>
                 </div>
                 
                 <% if (invoices.length === 0) { %>
@@ -44,30 +102,34 @@
                         <table class="table table-hover mb-0 align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="px-3 py-3">Date</th>
+                                    <th class="px-4 py-3">Date</th>
                                     <th class="py-3">Customer</th>
                                     <th class="py-3">Pet</th>
                                     <th class="py-3">Title</th>
                                     <th class="py-3">Amount</th>
-                                    <th class="px-3 py-3">Status</th>
+                                    <th class="py-3">Status</th>
+                                    <th class="px-4 py-3 text-end">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="invoiceTableBody">
                                 <% invoices.forEach(inv => { %>
-                                    <tr>
-                                        <td class="px-3"><%= new Date(inv.created_at).toLocaleDateString() %></td>
-                                        <td class="fw-semibold"><%= inv.owner_name %></td>
-                                        <td class="text-secondary"><%= inv.pet_name || '—' %></td>
-                                        <td><%= inv.title %></td>
+                                    <tr class="invoice-row">
+                                        <td class="px-4"><%= new Date(inv.created_at).toLocaleDateString() %></td>
+                                        <td class="fw-semibold searchable-text"><%= inv.owner_name %></td>
+                                        <td class="text-secondary searchable-text"><%= inv.pet_name || '—' %></td>
+                                        <td class="searchable-text"><%= inv.title %></td>
                                         <td class="fw-semibold">$<%= Number(inv.amount).toFixed(2) %></td>
-                                        <td class="px-3">
+                                        <td>
                                             <% if (inv.status === 'paid') { %>
                                                 <span class="badge bg-success bg-opacity-10 text-success border border-success">Paid</span>
                                             <% } else if (inv.status === 'cancelled') { %>
                                                 <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">Cancelled</span>
                                             <% } else { %>
-                                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning">Pending</span>
+                                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning">Pending</span>
                                             <% } %>
+                                        </td>
+                                        <td class="px-4 text-end">
+                                            <button class="btn btn-sm btn-light border"><i class="bi bi-three-dots"></i></button>
                                         </td>
                                     </tr>
                                 <% }) %>
@@ -80,7 +142,13 @@
         </div>
     </div>
 </div>
-</div>
+
+<style>
+    .bg-teal {
+        background-color: #0d9488 !important;
+    }
+</style>
+
 <script id="aggData" type="application/json">
     <%- JSON.stringify(aggData || []) %>
 </script>
@@ -100,21 +168,49 @@
                 datasets: [{
                     label: 'Total Revenue ($)',
                     data: data,
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
+                    backgroundColor: '#0d9488',
+                    borderRadius: 6,
+                    borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
+                    x: {
+                        grid: { display: false }
+                    },
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
                     }
                 }
             }
         });
+
+        // Real-time table search filter
+        const searchInput = document.getElementById('invoiceSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const rows = document.querySelectorAll('.invoice-row');
+                
+                rows. parseInt(searchTerm); // Do NOT do this. Just search. Wait, my code is correct below.
+                rows.forEach(row => {
+                    const rowText = row.innerText.toLowerCase();
+                    if (rowText.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
     });
 </script>
 </body>

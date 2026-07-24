@@ -1,122 +1,283 @@
 <%- include('partials/header') %>
-
     <div class="app-shell">
         <%- include('partials/customer-sidebar', { activePage: 'expenses' }) %>
-
             <div class="app-main">
-                <div class="app-content">
+                <div class="app-content py-4 py-md-5">
+                    <div class="container" style="max-width: 1100px;">
 
-                    <div class="page-head">
-                        <div>
-                            <h1 class="page-title">Secure <span class="accent">Checkout</span></h1>
-                            <p class="page-sub">Pay your invoice securely.</p>
+                        <div class="mb-4">
+                            <h2 class="fw-bold">Secure <span style="color: var(--primary-teal);">Checkout</span></h2>
+                            <p class="text-secondary">Select your preferred payment method below.</p>
                         </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="panel mb-4">
-                                <div class="panel-head">
-                                    <h2 class="panel-title">Payment Details</h2>
-                                </div>
-                                <div class="panel-body">
-                                    <form action="/checkout/<%= invoice.id %>" method="POST">
-                                        <div class="mb-3">
-                                            <label class="form-label small fw-bold text-secondary">Cardholder
-                                                Name</label>
-                                            <input type="text" class="form-control" name="cardName" required
-                                                placeholder="John Doe"
-                                                value="<%= savedCard && savedCard.saved_card_name ? savedCard.saved_card_name : '' %>">
-                                        </div>
+                        <div class="row g-4 flex-column-reverse flex-lg-row">
+                            <!-- Left Column: Unified Payment Accordion -->
+                            <div class="col-lg-7">
+                                <div class="accordion custom-accordion" id="paymentAccordion">
 
-                                        <div class="mb-3">
-                                            <label class="form-label small fw-bold text-secondary">Card Number</label>
-                                            <input type="text" class="form-control" name="cardNumber" required
-                                                placeholder="XXXX XXXX XXXX XXXX"
-                                                value="<%= savedCard && savedCard.saved_card_last4 ? '•••• •••• •••• ' + savedCard.saved_card_last4 : '' %>"
-                                                maxlength="19"
-                                                pattern="^(\d{4} \d{4} \d{4} \d{4}|•••• •••• •••• \d{4})$"
-                                                oninput="if(!this.value.includes('•')) { let v = this.value.replace(/\D/g, ''); this.value = v.replace(/(.{4})/g, '$1 ').trim().slice(0, 19); }">
-                                        </div>
+                                    <!-- METHOD 1: Credit/Debit Card -->
+                                    <div class="accordion-item shadow-sm">
+                                        <h2 class="accordion-header" id="headingCard">
+                                            <button class="accordion-button fw-bold fs-5" type="button"
+                                                data-bs-toggle="collapse" data-bs-target="#collapseCard"
+                                                aria-expanded="true" aria-controls="collapseCard">
+                                                <i class="bi bi-credit-card-fill me-3 fs-4 text-secondary"></i> Credit
+                                                or Debit Card
+                                            </button>
+                                        </h2>
+                                        <div id="collapseCard" class="accordion-collapse collapse show"
+                                            aria-labelledby="headingCard" data-bs-parent="#paymentAccordion">
+                                            <div class="accordion-body p-4 p-md-5">
+                                                <form action="/checkout/<%= invoice.id %>" method="POST">
+                                                    <div class="mb-4">
+                                                        <label
+                                                            class="form-label small fw-bold text-secondary text-uppercase">Cardholder
+                                                            Name</label>
+                                                        <div class="input-group">
+                                                            <span
+                                                                class="input-group-text bg-light border-end-0 text-muted"><i
+                                                                    class="bi bi-person"></i></span>
+                                                            <input type="text"
+                                                                class="form-control border-start-0 ps-0 bg-light"
+                                                                name="cardName" required placeholder="e.g. John Doe"
+                                                                autocomplete="cc-name"
+                                                                value="<%= savedCard && savedCard.saved_card_name ? savedCard.saved_card_name : '' %>">
+                                                        </div>
+                                                    </div>
 
-                                        <div class="mb-4 form-check">
-                                            <input type="checkbox" class="form-check-input" id="saveCardCheck"
-                                                name="saveCard" <%= savedCard && savedCard.saved_card_last4 ? 'checked' : '' %>>
-                                            <label class="form-check-label small text-secondary"
-                                                for="saveCardCheck">Save this card for future payments</label>
-                                        </div>
+                                                    <div class="mb-4">
+                                                        <label
+                                                            class="form-label small fw-bold text-secondary text-uppercase">Card
+                                                            Number</label>
+                                                        <div class="input-group">
+                                                            <span
+                                                                class="input-group-text bg-light border-end-0 text-muted"><i
+                                                                    class="bi bi-credit-card"></i></span>
+                                                            <input type="text"
+                                                                class="form-control border-start-0 ps-0 bg-light"
+                                                                name="cardNumber" required
+                                                                placeholder="XXXX XXXX XXXX XXXX"
+                                                                autocomplete="cc-number"
+                                                                value="<%= savedCard && savedCard.saved_card_last4 ? '•••• •••• •••• ' + savedCard.saved_card_last4 : '' %>"
+                                                                maxlength="19"
+                                                                pattern="^(\d{4} \d{4} \d{4} \d{4}|•••• •••• •••• \d{4})$"
+                                                                oninput="if(!this.value.includes('•')) { let v = this.value.replace(/\D/g, ''); this.value = v.replace(/(.{4})/g, '$1 ').trim().slice(0, 19); }">
+                                                        </div>
+                                                    </div>
 
-                                        <div class="row mb-4">
-                                            <div class="col-6">
-                                                <label class="form-label small fw-bold text-secondary">Expiry
-                                                    Date</label>
-                                                <input type="text" class="form-control" name="expiryDate" required
-                                                    placeholder="MM/YY"
-                                                    value="<%= savedCard && savedCard.saved_card_expiry ? savedCard.saved_card_expiry : '' %>"
-                                                    maxlength="5" pattern="(0[1-9]|1[0-2])\/\d{2}"
-                                                    oninput="let v = this.value.replace(/[^0-9]/g, '').slice(0,4); if (v.length >= 2) { v = v.substring(0,2) + '/' + v.substring(2); } this.value = v;">
+                                                    <div class="row mb-4">
+                                                        <div class="col-sm-6 mb-4 mb-sm-0">
+                                                            <label
+                                                                class="form-label small fw-bold text-secondary text-uppercase">Expiry
+                                                                Date</label>
+                                                            <div class="input-group">
+                                                                <span
+                                                                    class="input-group-text bg-light border-end-0 text-muted"><i
+                                                                        class="bi bi-calendar3"></i></span>
+                                                                <input type="text"
+                                                                    class="form-control border-start-0 ps-0 bg-light"
+                                                                    name="expiryDate" required placeholder="MM/YY"
+                                                                    autocomplete="cc-exp"
+                                                                    value="<%= savedCard && savedCard.saved_card_expiry ? savedCard.saved_card_expiry : '' %>"
+                                                                    maxlength="5" pattern="(0[1-9]|1[0-2])\/\d{2}"
+                                                                    oninput="let v = this.value.replace(/[^0-9]/g, '').slice(0,4); if (v.length >= 2) { v = v.substring(0,2) + '/' + v.substring(2); } this.value = v;">
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-sm-6">
+                                                            <label
+                                                                class="form-label small fw-bold text-secondary text-uppercase">CVV</label>
+                                                            <div class="input-group">
+                                                                <span
+                                                                    class="input-group-text bg-light border-end-0 text-muted"><i
+                                                                        class="bi bi-shield-lock"></i></span>
+                                                                <input type="password"
+                                                                    class="form-control border-start-0 ps-0 bg-light"
+                                                                    name="cvv" required placeholder="123"
+                                                                    autocomplete="cc-csc" maxlength="3" pattern="\d{3}"
+                                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mb-4 form-check">
+                                                        <input type="checkbox" class="form-check-input"
+                                                            id="saveCardCheck" name="saveCard">
+                                                        <label class="form-check-label text-secondary"
+                                                            for="saveCardCheck">Save this card for future
+                                                            payments</label>
+                                                    </div>
+
+                                                    <button type="submit"
+                                                        class="btn btn-primary w-100 py-3 fw-bold fs-6"
+                                                        style="border-radius: 0.75rem;">
+                                                        <i class="bi bi-lock-fill me-2"></i> Pay $<%=
+                                                            Number(invoice.amount).toFixed(2) %>
+                                                    </button>
+                                                </form>
                                             </div>
-                                            <div class="col-6">
-                                                <label class="form-label small fw-bold text-secondary">CVV</label>
-                                                <input type="password" class="form-control" name="cvv" required
-                                                    placeholder="123" maxlength="3" pattern="\d{3}"
-                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);">
+                                        </div>
+                                    </div>
+
+                                    <!-- METHOD 2: PayNow (SG) -->
+                                    <div class="accordion-item shadow-sm">
+                                        <h2 class="accordion-header" id="headingPaynow">
+                                            <button class="accordion-button collapsed fw-bold fs-5" type="button"
+                                                data-bs-toggle="collapse" data-bs-target="#collapsePaynow"
+                                                aria-expanded="false" aria-controls="collapsePaynow">
+                                                <i class="bi bi-qr-code-scan me-3 fs-4 text-secondary"></i> PayNow /
+                                                SGQR
+                                            </button>
+                                        </h2>
+                                        <div id="collapsePaynow" class="accordion-collapse collapse"
+                                            aria-labelledby="headingPaynow" data-bs-parent="#paymentAccordion">
+                                            <div class="accordion-body p-4 p-md-5 text-center">
+                                                <form action="/checkout/<%= invoice.id %>" method="POST">
+                                                    <h5 class="fw-bold mb-3" style="color: #7a1da1;">Scan to Pay</h5>
+                                                    <p class="text-secondary small mb-4">Scan the QR code below using
+                                                        your banking app. <br>The code changes dynamically for your
+                                                        security.</p>
+
+                                                    <div
+                                                        class="d-inline-block p-3 bg-white border rounded-4 shadow-sm mb-4">
+                                                        <!-- Dynamic QR Code -->
+                                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=SGQR_PetCenter_Inv<%= invoice.id %>_Amt<%= invoice.amount %>_TS<%= Date.now() %>"
+                                                            alt="PayNow QR Code" class="img-fluid rounded">
+                                                    </div>
+
+                                                    <div class="mb-4 text-start">
+                                                        <label
+                                                            class="form-label small fw-bold text-secondary text-uppercase">Transaction
+                                                            Reference (Optional)</label>
+                                                        <input type="text" class="form-control bg-light"
+                                                            name="paynowRef" placeholder="e.g. 20260724XXXX">
+                                                    </div>
+
+                                                    <button type="submit" class="btn w-100 py-3 fw-bold fs-6 text-white"
+                                                        style="border-radius: 0.75rem; background-color: #7a1da1;">
+                                                        I have completed the transfer
+                                                    </button>
+                                                </form>
                                             </div>
                                         </div>
-                                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold"
-                                            style="border-radius: 0.5rem;">
-                                            Confirm Payment - $<%= Number(invoice.amount).toFixed(2) %>
-                                        </button>
-                                        <a href="/expenses"
-                                            class="btn btn-link text-secondary w-100 mt-2 text-decoration-none text-center d-block">Cancel</a>
-                                    </form>
+                                    </div>
 
+                                </div> <!-- End Accordion -->
+
+                                <a href="/expenses"
+                                    class="btn btn-link text-secondary w-100 mt-4 text-decoration-none text-center d-block">Cancel
+                                    & Return to Expenses</a>
+                            </div>
+
+                            <!-- Right Column: Invoice Summary -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm"
+                                    style="border-radius: 1rem; background-color: #f8fafc;">
+                                    <div class="card-body p-4 p-md-5">
+                                        <h5 class="fw-bold mb-4">Invoice Summary</h5>
+
+                                        <div class="mb-4">
+                                            <h6 class="fw-bold text-dark fs-5 mb-1">
+                                                <%= invoice.title %>
+                                            </h6>
+                                            <p class="text-secondary small mb-0">Pet: <%= invoice.pet_name || 'N/A' %>
+                                            </p>
+                                        </div>
+
+                                        <ul class="list-group list-group-flush bg-transparent mb-4">
+                                            <li
+                                                class="list-group-item bg-transparent d-flex justify-content-between px-0 py-3 border-light">
+                                                <span class="text-secondary">Category</span>
+                                                <span class="fw-semibold">
+                                                    <%= invoice.category %>
+                                                </span>
+                                            </li>
+                                            <li
+                                                class="list-group-item bg-transparent d-flex justify-content-between px-0 py-3 border-light">
+                                                <span class="text-secondary">Status</span>
+                                                <span
+                                                    class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill px-3 py-2">Pending</span>
+                                            </li>
+                                            <li
+                                                class="list-group-item bg-transparent d-flex justify-content-between px-0 py-3 border-light">
+                                                <span class="text-secondary">Date Issued</span>
+                                                <span class="fw-semibold">
+                                                    <%= new Date(invoice.created_at).toLocaleDateString() %>
+                                                </span>
+                                            </li>
+
+                                            <% const dueDate=new Date(invoice.created_at);
+                                                dueDate.setDate(dueDate.getDate() + 14); %>
+                                                <li
+                                                    class="list-group-item bg-transparent d-flex justify-content-between px-0 py-3 border-light">
+                                                    <span class="text-secondary">Due Date</span>
+                                                    <span class="fw-semibold text-danger">
+                                                        <%= dueDate.toLocaleDateString() %>
+                                                    </span>
+                                                </li>
+                                        </ul>
+
+                                        <div
+                                            class="d-flex justify-content-between align-items-center pt-3 border-top border-light">
+                                            <span class="fw-bold fs-5 text-dark">Total Due</span>
+                                            <span class="fw-bold fs-4 text-teal" style="color: var(--primary-teal);">$
+                                                <%= Number(invoice.amount).toFixed(2) %></span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <div class="panel">
-                                <div class="panel-head">
-                                    <h2 class="panel-title">Invoice Summary</h2>
-                                </div>
-                                <div class="panel-body">
-                                    <h5 class="mb-3">
-                                        <%= invoice.title %>
-                                    </h5>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Category</span>
-                                        <span>
-                                            <%= invoice.category %>
-                                        </span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Status</span>
-                                        <span class="chip chip-amber text-capitalize">
-                                            <%= invoice.status %>
-                                        </span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Date Issued</span>
-                                        <span>
-                                            <%= new Date(invoice.created_at).toLocaleDateString() %>
-                                        </span>
-                                    </div>
-                                    <hr>
-                                    <div class="d-flex justify-content-between fw-bold">
-                                        <span>Total Due</span>
-                                        <span class="text-danger">$<%= Number(invoice.amount).toFixed(2) %>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-
                 </div>
             </div>
     </div>
 
+    <style>
+        /* Input Group Styling */
+        .input-group-text {
+            border-color: #dee2e6;
+        }
+
+        .form-control:focus {
+            box-shadow: none;
+            border-color: #dee2e6;
+        }
+
+        .input-group:focus-within .input-group-text,
+        .input-group:focus-within .form-control {
+            border-color: var(--primary-teal);
+        }
+
+        /* Modern Accordion Styling */
+        .custom-accordion .accordion-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem !important;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .custom-accordion .accordion-button {
+            background-color: #f8fafc;
+            color: #475569;
+            box-shadow: none !important;
+            padding: 1.25rem 1.5rem;
+        }
+
+        .custom-accordion .accordion-button:not(.collapsed) {
+            background-color: #f0fdfa;
+            /* Soft teal background when open */
+            color: var(--primary-teal);
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .custom-accordion .accordion-button i {
+            transition: color 0.2s;
+        }
+
+        .custom-accordion .accordion-button:not(.collapsed) i {
+            color: var(--primary-teal) !important;
+        }
+    </style>
     </body>
 
     </html>

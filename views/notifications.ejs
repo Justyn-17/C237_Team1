@@ -8,7 +8,7 @@
 
             <div class="page-head">
                 <div>
-                    <h1 class="page-title">My <span class="accent">Notifications</span></h1>
+                    <h1 class="page-title">My Billing <span class="accent">Notifications</span></h1>
                     <p class="page-sub">Stay up to date with your invoices and payments.</p>
                 </div>
             </div>
@@ -27,25 +27,27 @@
                 <% } else if (notifications) { %>
                     <div class="list-group list-group-flush">
                         <% notifications.forEach(notif => { %>
-                            <div class="list-group-item p-4 border-bottom" <%- notif.is_read ? 'style="background-color: #ffffff;"' : 'style="background-color: #f0fdfa;"' %>>
+                            <div class="list-group-item p-4 border-bottom" <%- notif.is_dynamic ? 'style="background-color: #fffbeb;"' : (notif.is_read ? 'style="background-color: #ffffff;"' : 'style="background-color: #f0fdfa;"') %>>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <p class="mb-1 fw-medium" <%- notif.is_read ? 'style="color: #475569;"' : 'style="color: #0f172a;"' %>><%= notif.message %></p>
                                         <small class="text-muted"><%= new Date(notif.created_at).toLocaleString() %></small>
                                     </div>
                                     <div class="d-flex gap-2">
-                                        <% if (!notif.is_read) { %>
-                                            <form action="/notifications/<%= notif.id %>/read" method="POST" class="d-inline">
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Mark as Read">
-                                                    <i class="bi bi-check2-all"></i>
+                                        <% if (!notif.is_dynamic) { %>
+                                            <% if (!notif.is_read) { %>
+                                                <form action="/notifications/<%= notif.id %>/read" method="POST" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary" title="Mark as Read">
+                                                        <i class="bi bi-check2-all"></i>
+                                                    </button>
+                                                </form>
+                                            <% } %>
+                                            <form action="/notifications/<%= notif.id %>/delete" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this notification?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                    <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
                                         <% } %>
-                                        <form action="/notifications/<%= notif.id %>/delete" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this notification?');">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
                                     </div>
                                 </div>
                             </div>

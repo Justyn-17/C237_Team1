@@ -11,10 +11,18 @@
                         <p class="text-secondary mb-0">Issue a new invoice to a customer.</p>
                     </div>
 
+                    <!-- UPDATED BACK BUTTON SECTION -->
                     <div class="mb-3">
-                        <a href="/appointments" class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-arrow-left"></i> Back
-                        </a>
+                        <% if (prefill && prefill.appt_id) { %>
+                            <a href="/appointments/<%= prefill.appt_id %>/cancel-invoice"
+                                class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-arrow-left"></i> Back & Cancel Invoice
+                            </a>
+                            <% } else { %>
+                                <a href="/appointments" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-arrow-left"></i> Back
+                                </a>
+                                <% } %>
                     </div>
 
                     <div class="card shadow-sm border-0" style="max-width: 800px;">
@@ -100,13 +108,17 @@
                                         value="<%= prefill.amount || '' %>">
                                 </div>
 
-                                <hr class="mb-4 text-muted">
-
-                                <div class="d-flex justify-content-end gap-2">
-                                    <a href="/appointments" class="btn btn-light border">Cancel</a>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-send"></i> Issue Invoice & Notify Customer
-                                    </button>
+                                <!-- UPDATED CANCEL BUTTON SECTION -->
+                                <div class="d-flex justify-content-end gap-3 mt-4 pt-4 border-top">
+                                    <% if (prefill && prefill.appt_id) { %>
+                                        <a href="/appointments/<%= prefill.appt_id %>/cancel-invoice"
+                                            class="btn btn-light border px-4 fw-bold">Cancel</a>
+                                        <% } else { %>
+                                            <a href="/appointments" class="btn btn-light border px-4 fw-bold">Cancel</a>
+                                            <% } %>
+                                                <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                                                    <i class="bi bi-send-fill me-2"></i> Issue Invoice & Notify Customer
+                                                </button>
                                 </div>
                             </form>
                         </div>
@@ -199,5 +211,6 @@
             titleInput.value = baseTitle + extraName;
         }
     </script>
-</body>
-</html>
+    </body>
+
+    </html>
