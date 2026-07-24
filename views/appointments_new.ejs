@@ -4,7 +4,6 @@
   <%- include('partials/customer-sidebar', { activePage: 'book' }) %>
 
   <main class="app-main">
-
     <div class="app-content">
 
       <div class="page-head">
@@ -17,16 +16,18 @@
         </a>
       </div>
 
+      <!-- Single POST form; URL stays /appointments/new -->
       <form action="/appointments" method="POST">
         <div class="row g-3">
 
-          <!-- Main form -->
+          <!-- Main form column -->
           <div class="col-lg-8">
             <div class="panel mb-3">
               <div class="panel-body">
                 <div class="form-section-title">Visit details</div>
 
                 <div class="row g-3">
+                  <!-- Pet -->
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Pet</label>
                     <select name="pet_id" class="form-select app-input" required>
@@ -44,14 +45,29 @@
                     <% } %>
                   </div>
 
+                  <!-- Date -->
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Appointment Date</label>
-                    <input type="date" name="date" class="form-control app-input" required>
+                    <input
+                      type="date"
+                      name="date"
+                      id="apptDate"
+                      class="form-control app-input"
+                      required
+                      onchange="loadSlots()"
+                    >
+                    <div class="form-text text-muted">Today or later only.</div>
                   </div>
 
+                  <!-- Vet -->
                   <div class="col-md-6">
                     <label class="form-label-sm d-block">Vet</label>
-                    <select name="vet_id" class="form-select app-input" required>
+                    <select
+                      name="vet_id"
+                      class="form-select app-input"
+                      required
+                      onchange="loadSlots()"
+                    >
                       <option value="" disabled selected>Select a vet</option>
                       <% vets.forEach(function(vet) { %>
                         <option value="<%= vet.id %>"><%= vet.name %></option>
@@ -65,6 +81,7 @@
 
                 <hr class="my-4" style="opacity:.08">
 
+                <!-- Time slots -->
                 <div class="form-section-title">Pick a time slot</div>
                 <div class="d-flex flex-wrap gap-2">
                   <% const slots = [
@@ -74,26 +91,42 @@
                      ]; %>
                   <% slots.forEach(function(slot, i) { %>
                     <div>
-                      <input class="btn-check" type="radio" name="slot_time"
-                             id="slot-<%= i %>" value="<%= slot[0] %>" <%= i === 0 ? 'required' : '' %>>
-                      <label class="btn btn-outline-primary rounded-pill px-3 py-2" for="slot-<%= i %>">
+                      <input
+                        class="btn-check"
+                        type="radio"
+                        name="slot_time"
+                        id="slot-<%= i %>"
+                        value="<%= slot[0] %>"
+                        required
+                      >
+                      <label
+                        class="btn btn-outline-primary rounded-pill px-3 py-2 slot-label"
+                        data-slot="<%= slot[0] %>"
+                        for="slot-<%= i %>"
+                      >
                         <%= slot[1] %>
                       </label>
                     </div>
                   <% }); %>
                 </div>
                 <div class="form-text text-muted mt-2">
-                  If a slot is already taken for that vet on that date, the booking will be rejected.
+                  Booked slots are disabled automatically after you pick a vet and date.
                 </div>
 
                 <hr class="my-4" style="opacity:.08">
 
+                <!-- Reason -->
                 <div class="form-section-title">Reason for visit</div>
-                <textarea name="reason" class="form-control app-input" rows="3"
-                          placeholder="Routine checkup, vaccination, grooming, etc."></textarea>
+                <textarea
+                  name="reason"
+                  class="form-control app-input"
+                  rows="3"
+                  placeholder="Routine checkup, vaccination, grooming, etc."
+                ></textarea>
               </div>
             </div>
 
+            <!-- Actions -->
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <a href="/customer-dashboard" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
               <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4 fw-bold shadow-sm">
@@ -120,7 +153,7 @@
                   <i class="bi bi-shield-check fs-5" style="color: var(--primary-teal);"></i>
                   <div>
                     <div class="fw-semibold text-dark small">No double bookings</div>
-                    <div class="text-muted small">Taken slots are rejected before they're saved.</div>
+                    <div class="text-muted small">Taken slots are disabled and also rejected before they're saved.</div>
                   </div>
                 </div>
                 <div class="d-flex gap-3">
@@ -136,6 +169,80 @@
 
         </div>
       </form>
+
+      <script>
+        const pad = (n) => String(n).padStart(2, '0');
+        const todayStr = () => {
+          const d = new Date();
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        };
+        // Seconds since midnight, so we can tell which of today's slots have passed.
+        const slotSeconds = (hhmmss) => {
+          const [h, m, s] = String(hhmmss).split(':').map(Number);
+          return (h * 3600) + (m * 60) + (s || 0);
+        };
+
+        // Stop the native date picker from offering past days.
+        document.addEventListener('DOMContentLoaded', function () {
+          const dateInput = document.getElementById('apptDate');
+          if (dateInput) {
+            dateInput.min = todayStr();
+            // If a stale/past value is present, clear it so nothing invalid is submitted.
+            if (dateInput.value && dateInput.value < dateInput.min) {
+              dateInput.value = '';
+            }
+          }
+          loadSlots();
+        });
+
+        async function loadSlots() {
+          const form = document.querySelector('form[action="/appointments"]');
+          const vetId = form.elements['vet_id'].value;
+          const date = form.elements['date'].value;
+
+          const inputs = document.querySelectorAll('input[name="slot_time"]');
+
+          // A slot on TODAY that has already passed is unavailable regardless of vet.
+          const isToday = date === todayStr();
+          const nowSecs = (() => {
+            const d = new Date();
+            return (d.getHours() * 3600) + (d.getMinutes() * 60) + d.getSeconds();
+          })();
+
+          // Booked slots only matter once both vet and date are chosen.
+          let bookedTimes = new Set();
+          if (vetId && date) {
+            try {
+              const res = await fetch(`/api/appointments/slots?vet_id=${encodeURIComponent(vetId)}&date=${encodeURIComponent(date)}`);
+              const data = await res.json();
+              bookedTimes = new Set((data.bookedTimes || []).map(String));
+            } catch (e) {
+              console.error('Failed to load slots', e);
+            }
+          }
+
+          inputs.forEach(input => {
+            const value = String(input.value);
+            const passed = isToday && slotSeconds(value) <= nowSecs;
+            const booked = bookedTimes.has(value);
+            const disabled = passed || booked;
+
+            input.disabled = disabled;
+            if (disabled && input.checked) input.checked = false;
+
+            const label = document.querySelector(`.slot-label[data-slot="${value}"]`);
+            if (!label) return;
+
+            // Remember the clean label text once, then rebuild it with a reason tag.
+            if (!label.dataset.base) label.dataset.base = label.textContent.trim();
+            const tag = booked ? ' (Booked)' : passed ? ' (Passed)' : '';
+            label.textContent = label.dataset.base + tag;
+
+            label.classList.toggle('btn-outline-primary', !disabled);
+            label.classList.toggle('btn-outline-secondary', disabled);
+          });
+        }
+      </script>
 
     </div>
   </main>

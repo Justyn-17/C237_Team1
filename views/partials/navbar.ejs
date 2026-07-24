@@ -1,72 +1,122 @@
-<nav class="navbar navbar-expand-lg navbar-dark mb-4">
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
   <div class="container">
 
-    <!-- Logo goes to dashboard if logged in, otherwise landing -->
-    <a class="navbar-brand fw-bold fs-4"
+    <!-- Logo goes to dashboard if logged in, otherwise landing page -->
+    <a class="navbar-brand d-flex align-items-center gap-2"
        href="<%= role === 'staff' ? '/staff-dashboard' : role === 'customer' ? '/customer-dashboard' : '/' %>">
-      🐾 PetCenter
+      <img src="/img/logo.png" alt="PetWell" style="height:56px;width:auto;border-radius:8px;">
+      <span>Pet<span class="brand-accent">Well</span></span>
     </a>
 
-    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+    <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+
+        <!-- Home link -->
+        <li class="nav-item">
+          <a class="nav-link" href="<%= role === 'staff' ? '/staff-dashboard' : role === 'customer' ? '/customer-dashboard' : '/' %>">
+            Home
+          </a>
+        </li>
+
+        <!-- Services Routing Dropdown Tab -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="servicesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Services
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="servicesDropdown">
+            <li>
+              <a class="dropdown-item" href="/services#checkup">
+                <span>🩺</span> General Checkup
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/services#vaccinations">
+                <span>💉</span> Vaccinations
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/services#surgery">
+                <span>🏥</span> Surgery & Care
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/services#grooming">
+                <span>✂️</span> Pet Grooming
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item text-teal fw-semibold" href="/services">
+                <span>📋</span> View All Services
+              </a>
+            </li>
+          </ul>
+        </li>
 
         <% if (!role) { %>
-          <!-- Guest: show Home + Login -->
+          <!-- Landing Page Section Scroll Links (guests only) -->
           <li class="nav-item">
-            <a class="nav-link px-3" href="/">
-              Home
-            </a>
+            <a class="nav-link" href="/#news">News</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link px-3 fw-semibold text-white" href="/login">
+            <a class="nav-link" href="/#resources">Resources</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/#faq">FAQ</a>
+          </li>
+          <!-- Guest Navigation Links -->
+          <li class="nav-item ms-lg-2">
+            <a class="nav-link nav-btn-outline" href="/login">
               Login
             </a>
           </li>
-        <% } else { %>
-          <!-- Logged-in: Dashboard first -->
-          <li class="nav-item">
-            <a class="nav-link px-3 fw-semibold text-white"
-               href="<%= role === 'staff' ? '/staff-dashboard' : '/customer-dashboard' %>">
-              Dashboard
+          <li class="nav-item ms-lg-1">
+            <a class="nav-link nav-btn-pill" href="/register">
+              Get Started
             </a>
           </li>
 
+        <% } else { %>
+          <!-- Logged-in Customer/Staff Navigation -->
+
           <% if (role === 'customer') { %>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/appointments/new">Book Appointment</a>
+              <a class="nav-link" href="/appointments/new">Book Appointment</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/appointments/my">My Appointments</a>
+              <a class="nav-link" href="/appointments/my">My Appointments</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/expenses">Expenses</a>
+              <a class="nav-link" href="/expenses">Expenses</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/profile">Profile</a>
+              <a class="nav-link" href="/profile">Profile</a>
             </li>
           <% } else if (role === 'staff') { %>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/user-directory">User Management</a>
+              <a class="nav-link" href="/user-directory">User Management</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/appointments">Appointments</a>
+              <a class="nav-link" href="/appointments">Appointments</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link px-3" href="/staff/pets">Pet Records</a>
+              <a class="nav-link" href="/staff/pets">Pet Records</a>
             </li>
             <% if (username === 'admin') { %>
               <li class="nav-item">
-                <a class="nav-link px-3" href="/staff/expenses">Expense Log</a>
+                <a class="nav-link" href="/staff/expenses">Expense Log</a>
               </li>
             <% } %>
           <% } %>
 
-          <li class="nav-item">
-            <a class="nav-link px-3" href="/logout">Logout</a>
+          <li class="nav-item ms-lg-2">
+            <a class="nav-link nav-btn-outline text-danger" href="/logout" style="border-color: rgba(239, 68, 68, 0.4) !important;">
+              Logout
+            </a>
           </li>
         <% } %>
 

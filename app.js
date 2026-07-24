@@ -8,7 +8,14 @@ const fs = require('fs');
 const multer = require('multer');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// Hosting platforms (Render, Heroku, Railway, …) terminate HTTPS at a proxy and
+// forward plain HTTP to this app. Trusting the proxy lets Express read the
+// X-Forwarded-Proto header, so it knows the original request was HTTPS and will
+// actually set the secure session cookie. Without this, the cookie is dropped on
+// the deployed site and login loops forever (works locally because there's no proxy).
+app.set('trust proxy', 1);
 
 // --- SECURITY GUIDELINES COMPLIANCE ---
 // Session Secret Management
@@ -34,6 +41,51 @@ app.locals.photoPath = function (photo) {
         return `/uploads/pets/${path.basename(photo)}`;
     }
     return photo;
+};
+
+// Date/time formatting for views. The MySQL driver hands back DATE columns as JS
+// Date objects, so rendering them directly prints the raw
+// "Fri Jul 31 2026 00:00:00 GMT+0800 (...)" string. These helpers turn that into a
+// readable label, using LOCAL date parts (not toISOString/UTC, which would be off
+// by a day here since a DATE is parsed as local midnight).
+const _WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// formatDate(value, { weekday: true }) -> "Mon, 20 Jul 2026"  (weekday defaults off)
+app.locals.formatDate = function (value, opts) {
+    if (value === null || value === undefined || value === '') return '—';
+
+    let d;
+    if (value instanceof Date) {
+        d = value;
+    } else {
+        // Accept a "YYYY-MM-DD..." string and build a local calendar date from it,
+        // so a plain date string is never shifted by a timezone.
+        const ymd = String(value).slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+            const [y, m, day] = ymd.split('-').map(Number);
+            d = new Date(y, m - 1, day);
+        } else {
+            d = new Date(value);
+        }
+    }
+
+    if (isNaN(d.getTime())) return String(value);
+
+    const base = `${d.getDate()} ${_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    return (opts && opts.weekday) ? `${_WEEKDAYS[d.getDay()]}, ${base}` : base;
+};
+
+// formatTime("14:00:00") -> "2:00 PM"
+app.locals.formatTime = function (value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const m = String(value).match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return String(value);
+    let hours = parseInt(m[1], 10);
+    const minutes = m[2];
+    const meridiem = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${meridiem}`;
 };
 
 // `pets.age` stores decimals (0.5 = 6 months), so show young pets in months
@@ -86,7 +138,10 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        // 'auto' (with trust proxy above) sends a secure cookie over HTTPS and a
+        // normal one over plain HTTP. This is robust in both places: secure on the
+        // deployed HTTPS site, still works on http://localhost — and never loops.
+        secure: 'auto',
         sameSite: 'lax',
         maxAge: 3600000
     }
@@ -113,21 +168,67 @@ const requireRole = (role) => (req, res, next) => {
 };
 
 // DB connection (Azure MySQL)
-const db = mysql.createConnection({
+const dbConfig = {
     host: process.env.DB_HOST || 'c237-leonard-mysql.mysql.database.azure.com',
     user: process.env.DB_USER || 'c237_023',
     password: process.env.DB_PASSWORD || 'c237023@2026!',
     database: process.env.DB_NAME || 'c237_023_team1_petcenter',
-    ssl: { rejectUnauthorized: false }
-});
+    ssl: { rejectUnauthorized: false },
+    dateString: true
+};
 
-db.connect((err) => {
-    if (err) {
-        console.error('Database connection failed:', err);
-        return;
-    }
-    console.log('Connected to Azure MySQL database.');
-});
+let db;
+const util = require('util');
+let queryAsync;
+let beginTransactionAsync;
+let commitAsync;
+let rollbackAsync;
+
+function handleDisconnect() {
+    db = mysql.createConnection(dbConfig);
+
+    // Bind the async transaction helpers to the new connection
+    queryAsync = util.promisify(db.query).bind(db);
+    beginTransactionAsync = util.promisify(db.beginTransaction).bind(db);
+    commitAsync = util.promisify(db.commit).bind(db);
+    rollbackAsync = util.promisify(db.rollback).bind(db);
+
+    db.connect((err) => {
+        if (err) {
+            console.error('Database connection failed:', err);
+            setTimeout(handleDisconnect, 2000);
+        } else {
+            console.log('Connected to Azure MySQL database.');
+        }
+    });
+
+    // Catch database errors to prevent the app from crashing on idle timeouts
+    db.on('error', (err) => {
+        console.error('Database connection error:', err);
+        if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+            console.log("Database connection dropped. Auto-reconnecting...");
+            handleDisconnect();
+        } else {
+            throw err;
+        }
+    });
+}
+
+handleDisconnect();
+
+// --- MASTER RECOVERY CODES HELPER ---
+function getSecureRandomChar() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let r = crypto.randomBytes(1)[0];
+    while (r >= 252) r = crypto.randomBytes(1)[0];
+    return chars[r % 36];
+}
+
+function generateSecureRecoveryCode() {
+    let code = '';
+    for (let i = 0; i < 12; i++) code += getSecureRandomChar();
+    return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}`;
+}
 
 // Global Session Invalidation Middleware
 app.use((req, res, next) => {
@@ -163,6 +264,11 @@ app.get('/', (req, res) => {
         return res.redirect('/staff-dashboard');
     }
     res.render('index');
+});
+
+// Services Information Page
+app.get('/services', (req, res) => {
+    res.render('services');
 });
 
 // Register Page
@@ -219,17 +325,17 @@ app.post('/login', async (req, res) => {
         }
 
         if (results.length === 0) {
-            return res.render('login', { error: 'Invalid username or password.' });
+            return res.render('login', { error: 'Invalid username or password.', activeTab: expectedRole });
         }
 
         const user = results[0];
 
         // Boundary Check: Ensure the user's role matches the portal they are trying to log in from
         if (expectedRole === 'staff' && (user.role !== 'staff' && user.role !== 'admin')) {
-            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+            return res.render('login', { error: 'Please use the correct portal for your account type.', activeTab: expectedRole });
         }
         if (expectedRole === 'customer' && user.role !== 'customer') {
-            return res.render('login', { error: 'Please use the correct portal for your account type.' });
+            return res.render('login', { error: 'Please use the correct portal for your account type.', activeTab: expectedRole });
         }
 
         try {
@@ -265,7 +371,7 @@ app.post('/login', async (req, res) => {
                     });
                 });
             } else {
-                return res.render('login', { error: 'Invalid username or password.' });
+                return res.render('login', { error: 'Invalid username or password.', activeTab: expectedRole });
             }
         } catch (error) {
             console.error("Error during password comparison:", error);
@@ -412,104 +518,680 @@ app.get('/staff-dashboard', requireRole('staff'), (req, res) => {
 
         // Everyone sees clinic-wide numbers.
         const apptTodaySql = "SELECT COUNT(*) AS count FROM appointments WHERE date = CURDATE() AND status <> 'cancelled'";
-        const apptTodayParams = [];
 
-        db.query(apptTodaySql, apptTodayParams, (err2, apptRows) => {
+        db.query(apptTodaySql, [], (err2, apptRows) => {
             if (err2) {
                 console.error("Error fetching today's appointments:", err2);
                 return res.status(500).send("Database error");
             }
 
-            const recentSql = `SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
-                   FROM appointments a
-                   LEFT JOIN pets p ON a.pet_id = p.id
-                   LEFT JOIN users o ON a.owner_id = o.id
-                   LEFT JOIN users v ON a.vet_id = v.id
-                   ORDER BY a.created_at DESC
-                   LIMIT 10`;
-            const recentParams = [];
+            const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE status <> 'cancelled' GROUP BY MONTH(date)";
 
-            db.query(recentSql, recentParams, (err3, recentRows) => {
-                if (err3) {
-                    console.error("Error fetching recent appointments:", err3);
+            db.query(monthlySql, [], (err4, monthlyRows) => {
+                if (err4) {
+                    console.error("Error fetching monthly appointments:", err4);
                     return res.status(500).send("Database error");
                 }
 
-                const monthlySql = "SELECT MONTH(date) AS month, COUNT(*) AS count FROM appointments WHERE status <> 'cancelled' GROUP BY MONTH(date)";
-                const monthlyParams = [];
+                const monthlyAppointments = Array(12).fill(0);
+                monthlyRows.forEach(row => {
+                    if (row.month >= 1 && row.month <= 12) {
+                        monthlyAppointments[row.month - 1] = row.count;
+                    }
+                });
 
-                db.query(monthlySql, monthlyParams, (err4, monthlyRows) => {
-                    if (err4) {
-                        console.error("Error fetching monthly appointments:", err4);
+                const speciesSql = "SELECT species, COUNT(*) AS count FROM pets GROUP BY species";
+                db.query(speciesSql, (err5, speciesRows) => {
+                    if (err5) {
+                        console.error("Error fetching species breakdown:", err5);
                         return res.status(500).send("Database error");
                     }
 
-                    const monthlyAppointments = Array(12).fill(0);
-                    monthlyRows.forEach(row => {
-                        if (row.month >= 1 && row.month <= 12) {
-                            monthlyAppointments[row.month - 1] = row.count;
+                    const speciesMap = {};
+                    speciesRows.forEach(row => {
+                        let species = (row.species || "").trim().toLowerCase();
+                        if (!species) {
+                            species = "Unspecified";
+                        } else {
+                            if (species === 'dog') species = 'dogs';
+                            if (species === 'cat') species = 'cats';
+                            if (species === 'bird') species = 'birds';
+                            if (species === 'rabbit') species = 'rabbits';
+                            species = species.charAt(0).toUpperCase() + species.slice(1);
                         }
+                        speciesMap[species] = (speciesMap[species] || 0) + row.count;
                     });
 
-                    const speciesSql = "SELECT species, COUNT(*) AS count FROM pets GROUP BY species";
-                    db.query(speciesSql, (err5, speciesRows) => {
-                        if (err5) {
-                            console.error("Error fetching species breakdown:", err5);
-                            return res.status(500).send("Database error");
-                        }
+                    const speciesBreakdown = Object.keys(speciesMap).map(label => ({
+                        label,
+                        count: speciesMap[label]
+                    })).sort((a, b) => b.count - a.count);
 
-                        const speciesMap = {};
-                        speciesRows.forEach(row => {
-                            let species = (row.species || "").trim().toLowerCase();
-                            if (!species) {
-                                species = "Unspecified";
-                            } else {
-                                if (species === 'dog') species = 'dogs';
-                                if (species === 'cat') species = 'cats';
-                                if (species === 'bird') species = 'birds';
-                                if (species === 'rabbit') species = 'rabbits';
-                                species = species.charAt(0).toUpperCase() + species.slice(1);
-                            }
-                            speciesMap[species] = (speciesMap[species] || 0) + row.count;
+                    // Check remaining recovery codes if admin, and compute KPIs
+                    if (isAdmin) {
+                        db.query('SELECT COUNT(*) as count FROM recovery_codes WHERE user_id = (SELECT id FROM users WHERE username = ?) AND is_used = 0', ['admin'], (err6, codeRows) => {
+                            let remainingCodes = 0;
+                            if (!err6 && codeRows.length > 0) remainingCodes = codeRows[0].count;
+
+                            // KPI 1: Revenue this calendar month (from paid invoices)
+                            const kpiSql = `
+                                SELECT
+                                    COALESCE(SUM(CASE WHEN MONTH(paid_at) = MONTH(CURDATE()) AND YEAR(paid_at) = YEAR(CURDATE()) THEN amount ELSE 0 END), 0) AS revenueThisMonth,
+                                    COUNT(CASE WHEN date BETWEEN DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 6 DAY) THEN 1 END) AS apptThisWeek
+                                FROM appointments
+                                WHERE 1=1
+                            `;
+                            // Simpler parallel approach — two lightweight queries
+                            const kpiRevSql = `SELECT COALESCE(SUM(amount),0) AS total FROM invoices WHERE status='paid' AND MONTH(paid_at)=MONTH(CURDATE()) AND YEAR(paid_at)=YEAR(CURDATE())`;
+                            const kpiWeekSql = `SELECT COUNT(*) AS cnt FROM appointments WHERE status<>'cancelled' AND date BETWEEN DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 6 DAY)`;
+                            const kpiPatSql = `SELECT COUNT(DISTINCT owner_id) AS cnt FROM appointments WHERE status<>'cancelled'`;
+                            const kpiVetSql = `SELECT COUNT(*) AS cnt FROM users WHERE role='staff' AND status='active' AND username<>'admin'`;
+
+                            db.query(kpiRevSql, [], (e1, r1) => {
+                                db.query(kpiWeekSql, [], (e2, r2) => {
+                                    db.query(kpiPatSql, [], (e3, r3) => {
+                                        db.query(kpiVetSql, [], (e4, r4) => {
+                                            res.render('staff', {
+                                                totalPets: petRows[0].count,
+                                                appointmentsToday: apptRows[0].count,
+                                                monthlyAppointments: monthlyAppointments,
+                                                speciesBreakdown: speciesBreakdown,
+                                                remainingCodes: remainingCodes,
+                                                kpiRevenue: (!e1 && r1.length) ? parseFloat(r1[0].total).toFixed(2) : '0.00',
+                                                kpiWeekAppts: (!e2 && r2.length) ? r2[0].cnt : 0,
+                                                kpiActivePatients: (!e3 && r3.length) ? r3[0].cnt : 0,
+                                                kpiVetsOnDuty: (!e4 && r4.length) ? r4[0].cnt : 0
+                                            });
+                                        });
+                                    });
+                                });
+                            });
                         });
-
-                        const speciesBreakdown = Object.keys(speciesMap).map(label => ({
-                            label,
-                            count: speciesMap[label]
-                        })).sort((a, b) => b.count - a.count);
-
+                    } else {
                         res.render('staff', {
                             totalPets: petRows[0].count,
                             appointmentsToday: apptRows[0].count,
-                            appointments: recentRows,
                             monthlyAppointments: monthlyAppointments,
-                            speciesBreakdown: speciesBreakdown
+                            speciesBreakdown: speciesBreakdown,
+                            remainingCodes: null
                         });
-                    });
+                    }
                 });
             });
         });
     });
 });
 
-// API for Recent Activity Polling
-app.get('/api/recent-activity', requireRole('staff'), (req, res) => {
-    const recentSql = `SELECT a.*, p.name AS pet_name, o.name AS owner_name, v.name AS vet_name
-                   FROM appointments a
-                   LEFT JOIN pets p ON a.pet_id = p.id
-                   LEFT JOIN users o ON a.owner_id = o.id
-                   LEFT JOIN users v ON a.vet_id = v.id
-                   ORDER BY a.created_at DESC
-                   LIMIT 10`;
+// ==========================================
+// API: Analytics — Real-time KPIs
+// GET /api/analytics/kpis
+// Returns revenue, weekly appointments, active patients, and vets on duty.
+// ==========================================
+app.get('/api/analytics/kpis', requireRole('staff'), async (req, res) => {
+    try {
+        const kpiRevSql = `SELECT COALESCE(SUM(amount),0) AS total FROM invoices WHERE status='paid' AND MONTH(paid_at)=MONTH(CURDATE()) AND YEAR(paid_at)=YEAR(CURDATE())`;
+        const kpiWeekSql = `SELECT COUNT(*) AS cnt FROM appointments WHERE status<>'cancelled' AND date BETWEEN DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 6 DAY)`;
+        const kpiPatSql = `SELECT COUNT(DISTINCT owner_id) AS cnt FROM appointments WHERE status<>'cancelled'`;
+        const kpiVetSql = `SELECT COUNT(*) AS cnt FROM users WHERE role='staff' AND status='active' AND username<>'admin'`;
 
-    db.query(recentSql, [], (err, results) => {
+        const queryAsync = (sql) => new Promise((resolve, reject) => {
+            db.query(sql, [], (err, results) => {
+                if (err) return reject(err);
+                resolve(results);
+            });
+        });
+
+        const [r1, r2, r3, r4] = await Promise.all([
+            queryAsync(kpiRevSql),
+            queryAsync(kpiWeekSql),
+            queryAsync(kpiPatSql),
+            queryAsync(kpiVetSql)
+        ]);
+
+        res.json({
+            revenue: (r1 && r1.length) ? parseFloat(r1[0].total) : 0,
+            weekAppts: (r2 && r2.length) ? r2[0].cnt : 0,
+            activePatients: (r3 && r3.length) ? r3[0].cnt : 0,
+            vetsOnDuty: (r4 && r4.length) ? r4[0].cnt : 0
+        });
+    } catch (error) {
+        console.error('Failed to fetch KPIs:', error);
+        res.status(500).json({ error: 'Failed to fetch KPIs' });
+    }
+});
+
+// ==========================================
+// API: Analytics — Revenue by Invoice Category
+// GET /api/analytics/revenue
+// Returns { labels: [...], data: [...] } for the admin Revenue Doughnut chart.
+// Revenue is sourced from paid invoices grouped by category.
+// ==========================================
+app.get('/api/analytics/revenue', requireRole('staff'), (req, res) => {
+    const sql = `
+        SELECT category AS label, COALESCE(SUM(amount), 0) AS total
+        FROM invoices
+        WHERE status = 'paid'
+        GROUP BY category
+        ORDER BY total DESC
+    `;
+    db.query(sql, [], (err, rows) => {
         if (err) {
-            console.error("Error fetching recent appointments API:", err);
-            return res.status(500).json({ error: "Database error" });
+            console.error('Error fetching revenue analytics:', err);
+            return res.status(500).json({ error: 'Database error' });
         }
-        res.json(results);
+        res.json({
+            labels: rows.map(r => r.label || 'Uncategorised'),
+            data: rows.map(r => parseFloat(r.total) || 0)
+        });
     });
 });
+
+// ==========================================
+// API: Analytics — Staff Workload Distribution
+// GET /api/analytics/workload
+// Returns { labels: [...], data: [...] } for the admin Workload Bar chart.
+// Counts active+completed appointments per vet (excludes system admin).
+// ==========================================
+app.get('/api/analytics/workload', requireRole('staff'), (req, res) => {
+    const sql = `
+        SELECT u.name AS label, COUNT(a.id) AS count
+        FROM appointments a
+        JOIN users u ON a.vet_id = u.id
+        WHERE a.status IN ('booked', 'completed', 'waiting', 'in_consultation')
+          AND u.username <> 'admin'
+        GROUP BY a.vet_id, u.name
+        ORDER BY count DESC
+    `;
+    db.query(sql, [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching workload analytics:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({
+            labels: rows.map(r => r.label),
+            data: rows.map(r => r.count)
+        });
+    });
+});
+
+// ==========================================
+// API: Clinic-Wide Appointment Volume Chart
+// GET /api/appointments/volume?timeframe=week|month|year|all-time
+// ==========================================
+app.get('/api/appointments/volume', requireRole('staff'), (req, res) => {
+    const timeframe = (req.query.timeframe || 'all-time').toLowerCase();
+
+    let sql, params = [];
+
+    if (timeframe === 'week') {
+        // Rolling 7-day window. DATE() strips the time component so today's
+        // freshly-booked appointments are always included regardless of the
+        // exact time the query runs.
+        sql = `
+            SELECT DATE(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE DATE(date) >= CURDATE() - INTERVAL 6 DAY
+              AND status <> 'cancelled'
+            GROUP BY DATE(date)
+            ORDER BY DATE(date)
+        `;
+    } else if (timeframe === 'month') {
+        // Current calendar month grouped by day-of-month
+        sql = `
+            SELECT DAY(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND MONTH(date) = MONTH(CURDATE())
+              AND status <> 'cancelled'
+            GROUP BY DAY(date)
+            ORDER BY DAY(date)
+        `;
+    } else if (timeframe === 'year') {
+        // Current year grouped by month number (1–12)
+        sql = `
+            SELECT MONTH(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND status <> 'cancelled'
+            GROUP BY MONTH(date)
+            ORDER BY MONTH(date)
+        `;
+    } else {
+        // All-time grouped by year+month
+        sql = `
+            SELECT DATE_FORMAT(date, '%Y-%m') AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE status <> 'cancelled'
+              AND date IS NOT NULL
+            GROUP BY DATE_FORMAT(date, '%Y-%m')
+            ORDER BY DATE_FORMAT(date, '%Y-%m')
+        `;
+    }
+
+    db.query(sql, params, (err, rows) => {
+        if (err) {
+            console.error('Error fetching appointment volume:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        let labels = [];
+        let data = [];
+
+        if (timeframe === 'week') {
+            // Normalise r.period to a YYYY-MM-DD string.
+            // The mysql npm package returns DATE() computed columns as JS Date
+            // objects (even with dateString:true), so we cannot use them directly
+            // as map keys — their toString() never matches an ISO string.
+            // We also build the loop key from LOCAL date parts (not toISOString)
+            // to avoid UTC-offset issues (e.g. toISOString returns yesterday
+            // before 08:00 in UTC+8).
+            const toLocalISO = (d) => {
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const dy = String(d.getDate()).padStart(2, '0');
+                return `${y}-${mo}-${dy}`;
+            };
+
+            const map = {};
+            rows.forEach(r => {
+                // Coerce to a reliable YYYY-MM-DD string whether r.period is a
+                // Date object or already a 'YYYY-MM-DD' string.
+                const key = (r.period instanceof Date)
+                    ? toLocalISO(r.period)
+                    : String(r.period).slice(0, 10);
+                map[key] = r.count;
+            });
+
+            // Build exactly 7 entries oldest-to-newest (AC3), zero-filling gaps (AC2)
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const iso = toLocalISO(d);
+                const label = `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+                labels.push(label);
+                data.push(map[iso] || 0);
+            }
+        } else if (timeframe === 'month') {
+            // Days 1..N of the current month; fill gaps with 0
+            const now = new Date();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let d = 1; d <= daysInMonth; d++) {
+                labels.push(String(d));
+                data.push(map[d] || 0);
+            }
+        } else if (timeframe === 'year') {
+            // Jan–Dec; fill months with no data as 0
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let m = 1; m <= 12; m++) {
+                labels.push(MONTH_NAMES[m - 1]);
+                data.push(map[m] || 0);
+            }
+        } else {
+            // All-time: build readable "Mon YYYY" labels from YYYY-MM keys
+            rows.forEach(r => {
+                const [y, m] = String(r.period).split('-');
+                labels.push(`${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`);
+                data.push(r.count);
+            });
+        }
+
+        res.json({ labels, data });
+    });
+});
+
+// ==========================================
+// API: Per-Vet Appointment Volume Chart
+// GET /api/vet/appointments/volume?timeframe=week|month|year|all-time
+// ==========================================
+app.get('/api/vet/appointments/volume', requireRole('staff'), (req, res) => {
+    const timeframe = (req.query.timeframe || 'all-time').toLowerCase();
+    const vetId = req.session.userId;
+
+    let sql, params = [];
+
+    if (timeframe === 'week') {
+        // Rolling 7-day window — DATE() strips time-of-day so freshly booked
+        // appointments are included immediately.
+        sql = `
+            SELECT DATE(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE DATE(date) >= CURDATE() - INTERVAL 6 DAY
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY DATE(date)
+            ORDER BY DATE(date)
+        `;
+        params = [vetId];
+    } else if (timeframe === 'month') {
+        sql = `
+            SELECT DAY(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND MONTH(date) = MONTH(CURDATE())
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY DAY(date)
+            ORDER BY DAY(date)
+        `;
+        params = [vetId];
+    } else if (timeframe === 'year') {
+        sql = `
+            SELECT MONTH(date) AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE YEAR(date) = YEAR(CURDATE())
+              AND status <> 'cancelled'
+              AND vet_id = ?
+            GROUP BY MONTH(date)
+            ORDER BY MONTH(date)
+        `;
+        params = [vetId];
+    } else {
+        sql = `
+            SELECT DATE_FORMAT(date, '%Y-%m') AS period, COUNT(*) AS count
+            FROM appointments
+            WHERE status <> 'cancelled'
+              AND date IS NOT NULL
+              AND vet_id = ?
+            GROUP BY DATE_FORMAT(date, '%Y-%m')
+            ORDER BY DATE_FORMAT(date, '%Y-%m')
+        `;
+        params = [vetId];
+    }
+
+    db.query(sql, params, (err, rows) => {
+        if (err) {
+            console.error('Error fetching vet appointment volume:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        let labels = [];
+        let data = [];
+
+        if (timeframe === 'week') {
+            // Same toLocalISO helper: avoids JS Date object key mismatch and
+            // UTC-offset day-boundary errors from toISOString().
+            const toLocalISO = (d) => {
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const dy = String(d.getDate()).padStart(2, '0');
+                return `${y}-${mo}-${dy}`;
+            };
+
+            const map = {};
+            rows.forEach(r => {
+                const key = (r.period instanceof Date)
+                    ? toLocalISO(r.period)
+                    : String(r.period).slice(0, 10);
+                map[key] = r.count;
+            });
+
+            // Exactly 7 entries oldest-to-newest, zero-filled
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const iso = toLocalISO(d);
+                const label = `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+                labels.push(label);
+                data.push(map[iso] || 0);
+            }
+        } else if (timeframe === 'month') {
+            const now = new Date();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let d = 1; d <= daysInMonth; d++) {
+                labels.push(String(d));
+                data.push(map[d] || 0);
+            }
+        } else if (timeframe === 'year') {
+            const map = {};
+            rows.forEach(r => { map[Number(r.period)] = r.count; });
+            for (let m = 1; m <= 12; m++) {
+                labels.push(MONTH_NAMES[m - 1]);
+                data.push(map[m] || 0);
+            }
+        } else {
+            rows.forEach(r => {
+                const [y, m] = String(r.period).split('-');
+                labels.push(`${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`);
+                data.push(r.count);
+            });
+        }
+
+        res.json({ labels, data });
+    });
+});
+
+// API: Vet Queue by Date
+app.get('/api/vet/queue', requireRole('staff'), (req, res) => {
+    if (req.session.username === 'admin') return res.status(403).json({ error: 'Admins do not have a queue.' });
+    const vetId = req.session.userId;
+    const dateStr = req.query.date;
+
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return res.status(400).json({ error: 'Valid date is required (YYYY-MM-DD).' });
+    }
+
+    db.query(
+        `SELECT a.id, a.date, a.start_time, a.end_time, a.reason, a.status, a.clinical_status,
+                p.name AS pet_name, o.name AS owner_name
+         FROM appointments a
+         LEFT JOIN pets p ON a.pet_id = p.id
+         LEFT JOIN users o ON a.owner_id = o.id
+         WHERE a.vet_id = ? AND a.date = ?
+         ORDER BY a.start_time`,
+        [vetId, dateStr],
+        (err, rows) => {
+            if (err) {
+                console.error("Error fetching vet queue:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ queue: rows });
+        }
+    );
+});
+
+// ==========================================
+// ISOLATED VET DASHBOARD ENDPOINTS
+// ==========================================
+
+// Vet API: Log or Update Vitals for Appointment
+app.post('/vet/api/appointments/:id/vitals', requireRole('staff'), (req, res) => {
+    const { weight, temperature, observations } = req.body;
+    db.query(
+        "UPDATE appointments SET vitals_weight = ?, vitals_temperature = ?, vitals_observations = ? WHERE id = ? AND vet_id = ?",
+        [weight || null, temperature || null, observations || null, req.params.id, req.session.userId],
+        (err, result) => {
+            if (err) {
+                console.error("Error saving vitals:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            console.log("VITALS POST:", { id: req.params.id, body: req.body, vet_id: req.session.userId, affectedRows: result.affectedRows });
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Appointment not found or not yours.' });
+            }
+            res.json({ success: true });
+        }
+    );
+});
+
+// Vet API: Get Vitals for Appointment
+app.get('/vet/api/appointments/:id/vitals', requireRole('staff'), (req, res) => {
+    db.query(
+        "SELECT vitals_weight AS weight, vitals_temperature AS temperature, vitals_observations AS observations FROM appointments WHERE id = ? AND vet_id = ?",
+        [req.params.id, req.session.userId],
+        (err, rows) => {
+            if (err) {
+                console.error("Error fetching vitals:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows[0] || {});
+        }
+    );
+});
+
+// GLOBAL API: Update Appointment Status
+app.patch('/api/appointments/:id/status', requireRole('staff'), (req, res) => {
+    const { status } = req.body;
+    db.query(
+        "UPDATE appointments SET status = ? WHERE id = ?",
+        [status, req.params.id],
+        (err, result) => {
+            if (err) {
+                console.error("Error updating status:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json({ success: true });
+        }
+    );
+});
+
+// Vet API: Update Appointment Clinical Status (Isolated with Tasks)
+app.patch('/vet/api/appointments/:id/clinical-status', requireRole('staff'), (req, res) => {
+    const { status } = req.body;
+    const apptId = req.params.id;
+    const vetIdFilter = req.session.userId;
+
+    if (status === 'labs_pending') {
+        db.beginTransaction(err => {
+            if (err) {
+                console.error("Transaction start error:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            db.query("UPDATE appointments SET clinical_status = ? WHERE id = ? AND vet_id = ?", [status, apptId, vetIdFilter], (err, result) => {
+                if (err) {
+                    return db.rollback(() => {
+                        console.error("Error updating status:", err);
+                        res.status(500).json({ error: 'Database error' });
+                    });
+                }
+
+                db.query(
+                    "SELECT p.name AS pet_name, a.vet_id FROM appointments a JOIN pets p ON a.pet_id = p.id WHERE a.id = ?",
+                    [apptId],
+                    (err2, rows) => {
+                        if (err2 || rows.length === 0) {
+                            return db.rollback(() => {
+                                console.error("Error fetching patient details:", err2);
+                                res.status(500).json({ error: 'Database error' });
+                            });
+                        }
+
+                        const petName = rows[0].pet_name;
+                        const vetId = rows[0].vet_id;
+                        const taskDesc = `Review lab results for ${petName}`;
+
+                        db.query(
+                            "INSERT INTO tasks (assigned_to, description, status, appointment_id) VALUES (?, ?, 'incomplete', ?)",
+                            [vetId, taskDesc, apptId],
+                            (err3, result3) => {
+                                if (err3) {
+                                    return db.rollback(() => {
+                                        console.error("Error inserting task:", err3);
+                                        res.status(500).json({ error: 'Database error' });
+                                    });
+                                }
+
+                                db.commit(err4 => {
+                                    if (err4) {
+                                        return db.rollback(() => {
+                                            console.error("Transaction commit error:", err4);
+                                            res.status(500).json({ error: 'Database error' });
+                                        });
+                                    }
+                                    res.json({
+                                        success: true,
+                                        taskGenerated: true,
+                                        task: { id: result3.insertId, description: taskDesc, status: 'incomplete' }
+                                    });
+                                });
+                            }
+                        );
+                    }
+                );
+            });
+        });
+    } else {
+        db.query(
+            "UPDATE appointments SET clinical_status = ? WHERE id = ? AND vet_id = ?",
+            [status, apptId, vetIdFilter],
+            (err, result) => {
+                if (err) {
+                    console.error("Error updating status:", err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                res.json({ success: true });
+            }
+        );
+    }
+});
+
+
+// Vet: View Patient Medical Record
+app.get('/vet/record/:id', requireRole('staff'), (req, res) => {
+    const sql = `
+        SELECT a.id, a.date, a.start_time, a.end_time, a.reason, a.status, a.clinical_status,
+               a.vitals_weight, a.vitals_temperature, a.vitals_observations,
+               p.name AS pet_name, p.species, p.breed, p.age,
+               u.name AS owner_name,
+               v.name AS vet_name
+        FROM appointments a
+        LEFT JOIN pets p ON a.pet_id = p.id
+        LEFT JOIN users u ON a.owner_id = u.id
+        LEFT JOIN users v ON a.vet_id = v.id
+        WHERE a.id = ? AND a.vet_id = ?
+    `;
+    db.query(sql, [req.params.id, req.session.userId], (err, rows) => {
+        if (err) {
+            console.error("Error fetching appointment details:", err);
+            return res.status(500).send("Database error");
+        }
+        if (rows.length === 0) return res.status(404).send("Appointment not found or unauthorized access.");
+
+        // --- DEBUG LINE: Look at your IDE terminal when you refresh the page! ---
+        console.log("DEBUG DATABASE ROW:", rows[0]);
+        // ------------------------------------------------------------------------
+
+        res.render('vet/patient-record', {
+            appointment: rows[0],
+            currentUser: { username: req.session.username, role: req.session.role }
+        });
+    });
+});
+
+// API: Complete Task
+app.patch('/api/tasks/:id/complete', requireRole('staff'), (req, res) => {
+    db.query(
+        "UPDATE tasks SET status = 'complete' WHERE id = ? AND assigned_to = ?",
+        [req.params.id, req.session.userId],
+        (err, result) => {
+            if (err) {
+                console.error("Error completing task:", err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            db.query(
+                "UPDATE appointments SET clinical_status = NULL WHERE id = (SELECT appointment_id FROM tasks WHERE id = ?)",
+                [req.params.id],
+                (err2) => {
+                    if (err2) console.error("Error clearing clinical_status:", err2);
+                    res.json({ success: true });
+                }
+            );
+        }
+    );
+});
+
 
 // Vet Dashboard: a single vet's own patients and appointments
 app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
@@ -535,11 +1217,14 @@ app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
                     }
 
                     db.query(
-                        `SELECT a.*, p.name AS pet_name, o.name AS owner_name
+                        `SELECT a.id, a.date, a.start_time, a.end_time, a.reason, a.status,
+                                p.name AS pet_name, o.name AS owner_name
                          FROM appointments a
                          LEFT JOIN pets p ON a.pet_id = p.id
                          LEFT JOIN users o ON a.owner_id = o.id
                          WHERE a.vet_id = ?
+                           AND a.date >= CURDATE()
+                           AND a.status = 'booked'
                          ORDER BY a.date, a.start_time
                          LIMIT 10`,
                         [vetId],
@@ -594,12 +1279,39 @@ app.get('/staff/vet-dashboard', requireRole('staff'), (req, res) => {
                                         count: speciesMap[label]
                                     })).sort((a, b) => b.count - a.count);
 
-                                    res.render('vet_dashboard', {
-                                        myPatients: patientRows[0].count,
-                                        myAppointmentsToday: apptRows[0].count,
-                                        myAppointments: apptListRows,
-                                        monthlyAppointments: monthlyAppointments,
-                                        speciesBreakdown: speciesBreakdown
+                                    // Today's patient queue: appointments for this vet today, ordered by time
+                                    const queueSql = `
+                                        SELECT a.id, a.start_time, a.reason, a.status,
+                                               p.name AS pet_name, o.name AS owner_name
+                                        FROM appointments a
+                                        LEFT JOIN pets p ON a.pet_id = p.id
+                                        LEFT JOIN users o ON a.owner_id = o.id
+                                        WHERE a.vet_id = ? AND a.date = CURDATE() AND a.status <> 'cancelled'
+                                        ORDER BY a.start_time
+                                    `;
+                                    db.query(queueSql, [vetId], (err6, queueRows) => {
+                                        if (err6) {
+                                            console.error("Error fetching today's queue:", err6);
+                                            // Non-fatal: render with empty queue rather than 500
+                                            queueRows = [];
+                                        }
+
+                                        db.query("SELECT id, description, status, appointment_id FROM tasks WHERE assigned_to = ? AND status = 'incomplete'", [vetId], (err7, taskRows) => {
+                                            if (err7) {
+                                                console.error("Error fetching tasks:", err7);
+                                                taskRows = [];
+                                            }
+
+                                            res.render('vet_dashboard', {
+                                                myPatients: patientRows[0].count,
+                                                myAppointmentsToday: apptRows[0].count,
+                                                myAppointments: apptListRows,
+                                                monthlyAppointments: monthlyAppointments,
+                                                speciesBreakdown: speciesBreakdown,
+                                                todayQueue: queueRows,
+                                                clinicalTasks: taskRows
+                                            });
+                                        });
                                     });
                                 });
                             });
@@ -622,7 +1334,8 @@ app.get('/user-directory', requireRole('staff'), (req, res) => {
             users: results,
             currentUser: { username: req.session.username, role: req.session.role },
             accessCode: null,
-            newUsername: null
+            newUsername: null,
+            activeTab: req.query.tab
         });
     });
 });
@@ -842,7 +1555,7 @@ app.get('/forgot-password', (req, res) => {
 app.post('/forgot-password', (req, res) => {
     const { username } = req.body;
     if (username === 'admin') {
-        return res.render('forgot-password', { error: 'Action not allowed for this user.' });
+        return res.redirect('/recover-password');
     }
     db.query("SELECT * FROM users WHERE username = ?", [username], (err, results) => {
         if (err || results.length === 0) {
@@ -859,9 +1572,9 @@ app.post('/forgot-password/verify', async (req, res) => {
 
         const user = results[0];
 
-        // Prevent admin reset
+        // Prevent standard reset for admin, route to master recovery
         if (user.username === 'admin') {
-            return res.render('forgot-password-verify', { user, error: 'Action not allowed for this user.' });
+            return res.redirect('/recover-password');
         }
 
         try {
@@ -920,9 +1633,17 @@ app.post('/staff/reset-user/:id', async (req, res) => {
             db.query("UPDATE users SET password_hash = ?, temp_access_code = ?, requires_password_reset = true WHERE id = ?", [hashedPassword, accessCode, targetUserId], (err) => {
                 if (err) return res.status(500).send("Database error");
 
+                // Audit log: record the password reset action
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'PASSWORD_RESET', ?, ?)",
+                    [req.session.username, targetUser.username, `Temp code issued (first 4: ${accessCode.slice(0, 4)}…)`],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+
                 db.query("SELECT * FROM users", (err, users) => {
                     if (err) return res.status(500).send("Database error");
-                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username });
+                    const activeTab = targetUser.role === 'customer' ? 'customers' : 'staff';
+                    res.render('user-directory', { users, resetAccessCode: accessCode, resetUsername: targetUser.username, activeTab });
                 });
             });
         } catch (error) {
@@ -933,10 +1654,6 @@ app.post('/staff/reset-user/:id', async (req, res) => {
 });
 
 
-// Staff: System settings
-app.get('/staff/settings', requireRole('staff'), (req, res) => {
-    res.render('settings-coming-soon');
-});
 
 // ==========================================
 // SOFT DELETE WORKFLOW
@@ -956,24 +1673,50 @@ app.post('/customer/request-deletion', requireRole('customer'), (req, res) => {
 
 app.post('/cancel-deletion-request/:id', (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
-        if (err) {
-            console.error("Error canceling deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        const targetUsername = (!lookupErr && lookupRows.length > 0) ? lookupRows[0].username : `id:${targetId}`;
+        db.query("UPDATE users SET status = 'active' WHERE id = ?", [targetId], (err) => {
+            if (err) {
+                console.error("Error canceling deletion:", err);
+                return res.status(500).send("Database error");
+            }
+            // Audit log
+            db.query(
+                "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_CANCELLED', ?, 'Deletion request reversed')",
+                [req.session.username || 'system', targetUsername],
+                (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+            );
+            res.redirect('/user-directory?tab=customers');
+        });
     });
 });
 
 // TODO(security): Implement CSRF protection for state-changing routes
 app.post('/staff/approve-deletion/:id', requireRole('staff'), (req, res) => {
     const targetId = req.params.id;
-    db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err) => {
-        if (err) {
-            console.error("Error approving deletion:", err);
-            return res.status(500).send("Database error");
-        }
-        res.redirect('/user-directory');
+    // Look up the target username first so we can rename it on delete
+    db.query("SELECT username FROM users WHERE id = ?", [targetId], (lookupErr, lookupRows) => {
+        if (lookupErr || lookupRows.length === 0) return res.status(500).send("User not found.");
+        const originalUsername = lookupRows[0].username;
+        // Truncate to 50 chars before appending suffix to respect VARCHAR limits
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err) => {
+                if (err) {
+                    console.error("Error approving deletion:", err);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'DELETION_APPROVED', ?, 'Customer account soft-deleted; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory?tab=customers');
+            }
+        );
     });
 });
 
@@ -985,8 +1728,6 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
 
     const targetId = req.params.id;
 
-    // Prevent self-deletion if ID matches session (though we rely on username for the admin check)
-    // To be perfectly safe, we verify we aren't targeting the admin.
     db.query("SELECT username FROM users WHERE id = ?", [targetId], (err, results) => {
         if (err || results.length === 0) return res.status(500).send("User not found.");
 
@@ -994,13 +1735,26 @@ app.post('/admin/delete-staff/:id', requireRole('staff'), (req, res) => {
             return res.status(403).send("Forbidden: Cannot delete the primary admin account.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'staff'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting staff:", err2);
-                return res.status(500).send("Database error");
+        const originalUsername = results[0].username;
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'staff'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting staff:", err2);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log — record ORIGINAL username for traceability
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'STAFF_ACCOUNT_DELETED', ?, 'Staff account deleted by admin; username freed for re-use')",
+                    [req.session.username, originalUsername],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
             }
-            res.redirect('/user-directory');
-        });
+        );
     });
 });
 
@@ -1022,13 +1776,25 @@ app.post('/admin/delete-customer/:id', requireRole('staff'), (req, res) => {
             return res.status(400).send("Bad Request: User is not a customer.");
         }
 
-        db.query("UPDATE users SET status = 'deleted' WHERE id = ? AND role = 'customer'", [targetId], (err2) => {
-            if (err2) {
-                console.error("Error deleting customer:", err2);
-                return res.status(500).send("Database error");
-            }
-            res.redirect('/user-directory');
-        });
+        const originalUsername = results[0].username;
+        const deletedUsername = originalUsername.slice(0, 50) + '_deleted_' + Date.now();
+
+        db.query(
+            "UPDATE users SET status = 'deleted', username = ? WHERE id = ? AND role = 'customer'",
+            [deletedUsername, targetId],
+            (err2) => {
+                if (err2) {
+                    console.error("Error deleting customer:", err2);
+                    return res.status(500).send("Database error");
+                }
+                // Audit log
+                db.query(
+                    "INSERT INTO admin_audit_log (actor, action_type, target_user, details) VALUES (?, 'CUSTOMER_ACCOUNT_DELETED', ?, 'Customer account hard-deleted by admin')",
+                    [req.session.username, results[0].username],
+                    (auditErr) => { if (auditErr) console.error('Audit log error:', auditErr); }
+                );
+                res.redirect('/user-directory');
+            });
     });
 });
 
@@ -1581,8 +2347,36 @@ app.get('/appointments/new', requireRole('customer'), (req, res) => {
                 console.error("Error fetching vets for appointments:", err2);
                 return res.status(500).send("Database error");
             }
+            // No bookedTimes here; front-end JS will fetch them
             res.render('appointments_new', { pets, vets });
         });
+    });
+});
+
+// API: return booked times for a vet + date as JSON (used by JS on /appointments/new)
+app.get('/api/appointments/slots', requireRole('customer'), (req, res) => {
+    const { vet_id, date } = req.query;
+
+    if (!vet_id || !date) {
+        return res.json({ bookedTimes: [] });
+    }
+
+    const sql = `
+        SELECT start_time
+        FROM appointments
+        WHERE vet_id = ?
+          AND date = ?
+          AND status <> 'cancelled'
+    `;
+
+    db.query(sql, [vet_id, date], (err, rows) => {
+        if (err) {
+            console.error('Error fetching booked slots:', err);
+            return res.status(500).json({ bookedTimes: [] });
+        }
+
+        const bookedTimes = rows.map(r => String(r.start_time)); // e.g. ['11:00:00']
+        res.json({ bookedTimes });
     });
 });
 
@@ -1594,6 +2388,26 @@ app.post('/appointments', requireRole('customer'), (req, res) => {
 
     if (!pet_id || !vet_id || !date || !slot_time) {
         return res.status(400).send("Pet, vet, date, and time slot are required. <a href='/appointments/new'>Go back</a>");
+    }
+
+    // Reject bookings in the past. The browser sets a min date, but never trust it —
+    // a past date, or a time that already passed today, must be blocked here too.
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).send("Please choose a valid date. <a href='/appointments/new'>Go back</a>");
+    }
+    if (date < todayStr) {
+        return res.status(400).send("You can't book an appointment in the past. <a href='/appointments/new'>Pick a future date</a>");
+    }
+    if (date === todayStr) {
+        const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        // slot_time is "HH:00:00"; a same-format string compare is safe here.
+        if (String(slot_time) <= nowTime) {
+            return res.status(400).send("That time slot has already passed today. <a href='/appointments/new'>Pick a later slot</a>");
+        }
     }
 
     const start_time = slot_time;
@@ -2190,10 +3004,250 @@ app.post('/staff/expenses/delete/:id', requireRole('staff'), (req, res) => {
     });
 });
 
+// ---------- Master Recovery Codes Routes ----------
+app.post('/generate-recovery-codes', async (req, res) => {
+    try {
+        if (!req.session || req.session.role !== 'admin' || req.session.username !== 'admin') {
+            return res.status(403).send('Forbidden: Admin access required.');
+        }
+        const users = await queryAsync('SELECT id FROM users WHERE username = ?', [req.session.username]);
+        if (users.length === 0) return res.status(400).send('Admin not found');
+        const adminId = users[0].id;
+
+        const plainCodes = [];
+        const saltRounds = 12;
+
+        for (let i = 0; i < 5; i++) {
+            const code = generateSecureRecoveryCode();
+            plainCodes.push(code);
+            const hashedCode = await bcrypt.hash(code, saltRounds);
+            await queryAsync('INSERT INTO recovery_codes (user_id, code, is_used) VALUES (?, ?, 0)', [adminId, hashedCode]);
+        }
+
+        res.render('admin/recovery-codes-generated', { codes: plainCodes });
+    } catch (err) {
+        console.error('Error generating recovery codes:', err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.get('/recover-password', (req, res) => {
+    res.render('recover-password');
+});
+
+app.post('/recover-password', async (req, res) => {
+    try {
+        let { username, recoveryCode } = req.body;
+        recoveryCode = (recoveryCode || '').trim().toUpperCase();
+        const users = await queryAsync('SELECT id, username, role FROM users WHERE username = ?', [username]);
+
+        if (users.length === 0 || users[0].role !== 'admin' || users[0].username !== 'admin') {
+            return res.status(401).render('recover-password', { error: 'Invalid username or recovery code.' });
+        }
+
+        const user = users[0];
+        const codes = await queryAsync('SELECT id, code FROM recovery_codes WHERE user_id = ? AND is_used = 0', [user.id]);
+
+        console.log("--- DEBUGGING RECOVERY ---");
+        console.log("Code entered by user:", recoveryCode);
+        console.log("Codes found in DB:", codes);
+        console.log("--------------------------");
+
+        let matchedCodeId = null;
+        for (const row of codes) {
+            const isMatch = await bcrypt.compare(recoveryCode, row.code);
+            if (isMatch) {
+                matchedCodeId = row.id;
+                break;
+            }
+        }
+
+        if (matchedCodeId) {
+            await queryAsync('UPDATE recovery_codes SET is_used = 1 WHERE id = ?', [matchedCodeId]);
+            req.session.regenerate((err) => {
+                if (err) throw err;
+                req.session.resetAuthorized = true;
+                req.session.resetUserId = user.id;
+                req.session.username = user.username;
+                res.redirect('/reset-password');
+            });
+        } else {
+            return res.status(401).render('recover-password', { error: 'Invalid username or recovery code.' });
+        }
+    } catch (err) {
+        console.error('Error during password recovery:', err);
+        return res.status(500).render('recover-password', { error: 'An internal server error occurred.' });
+    }
+});
+
+app.post('/regenerate-recovery-codes', async (req, res) => {
+    try {
+        if (!req.session || req.session.role !== 'admin' || req.session.username !== 'admin') {
+            return res.status(403).send('Forbidden: Admin access required.');
+        }
+        const users = await queryAsync('SELECT id, password_hash FROM users WHERE username = ?', [req.session.username]);
+        if (users.length === 0) return res.status(400).send('Admin not found');
+        const adminId = users[0].id;
+
+        const { currentPassword } = req.body;
+        if (!currentPassword) {
+            return res.redirect('/staff/profile?error=password_required');
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, users[0].password_hash);
+        if (!isMatch) {
+            return res.redirect('/staff/profile?error=incorrect_password');
+        }
+
+        await beginTransactionAsync();
+        try {
+            await queryAsync('UPDATE recovery_codes SET is_used = 1 WHERE user_id = ?', [adminId]);
+            const plainCodes = [];
+            const saltRounds = 12;
+            for (let i = 0; i < 5; i++) {
+                const code = generateSecureRecoveryCode();
+                plainCodes.push(code);
+                const hashedCode = await bcrypt.hash(code, saltRounds);
+                await queryAsync('INSERT INTO recovery_codes (user_id, code, is_used) VALUES (?, ?, 0)', [adminId, hashedCode]);
+            }
+            await commitAsync();
+            res.render('admin/recovery-codes-generated', { codes: plainCodes });
+        } catch (txnErr) {
+            await rollbackAsync();
+            throw txnErr;
+        }
+    } catch (err) {
+        console.error('Error regenerating recovery codes:', err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.get('/reset-password', (req, res) => {
+    if (req.session.resetAuthorized !== true) {
+        return res.status(403).send('Forbidden: You must verify a recovery code first.');
+    }
+    res.render('reset-password', { error: null });
+});
+
+app.post('/reset-password', async (req, res) => {
+    try {
+        if (req.session.resetAuthorized !== true || !req.session.resetUserId) {
+            return res.status(403).send("Forbidden: Unauthorized reset attempt.");
+        }
+
+        const { newPassword, confirmPassword } = req.body;
+
+        if (newPassword !== confirmPassword) {
+            return res.render('reset-password', { error: 'Passwords do not match.' });
+        }
+
+        if (newPassword.length < 8) {
+            return res.render('reset-password', { error: 'Password must be at least 8 characters long.' });
+        }
+
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Run UPDATE query
+
+        await queryAsync('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, req.session.resetUserId]);
+
+        // Securely clear reset flags
+        req.session.resetAuthorized = false;
+        req.session.resetUserId = null;
+
+        res.redirect('/login');
+    } catch (err) {
+        console.error('Error resetting password:', err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+
+
+// ==========================================
+// SUPER ADMIN: System Health Dashboard
+// ==========================================
+app.get('/admin/system-health', async (req, res) => {
+    // 1. Protect the route (Super Admin Only)
+    if (!req.session.username || req.session.username !== 'admin') {
+        return res.redirect('/login');
+    }
+
+    // 2. Parse query parameters for search, filter, and pagination
+    const LOGS_PER_PAGE = 20;
+    const searchQuery = (req.query.search || '').trim();
+    const selectedAction = (req.query.action || '').trim();
+    const currentPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const offset = (currentPage - 1) * LOGS_PER_PAGE;
+
+    // 3. Build dynamic WHERE clause for audit log queries
+    const whereClauses = [];
+    const whereParams = [];
+
+    if (searchQuery) {
+        whereClauses.push("(actor LIKE ? OR target_user LIKE ? OR DATE_FORMAT(created_at, '%Y-%m-%d') LIKE ?)");
+        const likeVal = `%${searchQuery}%`;
+        whereParams.push(likeVal, likeVal, likeVal);
+    }
+    if (selectedAction && selectedAction !== 'ALL') {
+        whereClauses.push('action_type = ?');
+        whereParams.push(selectedAction);
+    }
+
+    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    try {
+        // 4. Run stat counts + audit COUNT + paginated audit rows concurrently
+        const [
+            customersResult,
+            staffResult,
+            deletionsResult,
+            totalLogResult,
+            auditLogs
+        ] = await Promise.all([
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role = 'customer' AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE role IN ('staff', 'admin') AND status != 'deleted'"),
+            queryAsync("SELECT COUNT(*) AS count FROM users WHERE status = 'deletion_requested'"),
+            queryAsync(`SELECT COUNT(*) AS count FROM admin_audit_log ${whereSQL}`, whereParams),
+            queryAsync(
+                `SELECT id, created_at, actor, action_type, target_user, details
+                 FROM admin_audit_log
+                 ${whereSQL}
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?`,
+                [...whereParams, LOGS_PER_PAGE, offset]
+            )
+        ]);
+
+        const totalLogCount = totalLogResult[0].count;
+        const totalPages = Math.max(1, Math.ceil(totalLogCount / LOGS_PER_PAGE));
+
+        // 5. Render the view with all data
+        res.render('system-health', {
+            user: req.session,
+            _active: 'system-health',
+            totalCustomers: customersResult[0].count,
+            totalStaff: staffResult[0].count,
+            pendingDeletions: deletionsResult[0].count,
+            auditLogs,
+            totalLogCount,
+            currentPage,
+            totalPages,
+            searchQuery,
+            selectedAction
+        });
+
+    } catch (err) {
+        console.error("Error loading System Health Dashboard:", err);
+        res.status(500).send("Internal Server Error while loading dashboard data.");
+    }
+});
+
 // ==========================================
 // Start Server
 // ==========================================
 
-app.listen(PORT, '127.0.0.1', () => {
-    console.log(`Server running on http://127.0.0.1:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
 });

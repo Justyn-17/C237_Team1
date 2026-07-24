@@ -1,0 +1,312 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<style>
+  .services-hero {
+    background: 
+      radial-gradient(circle at 80% 20%, rgba(13, 148, 136, 0.25) 0%, transparent 50%),
+      radial-gradient(circle at 20% 80%, rgba(15, 23, 42, 0.9) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0d9488 100%);
+    padding: 60px 0 50px 0;
+    color: white;
+    text-align: center;
+  }
+
+  .service-tab-btn {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #1e293b;
+    color: #f8fafc;
+    font-weight: 600;
+    padding: 14px 24px;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .service-tab-btn:hover {
+    color: #0d9488;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(13, 148, 136, 0.15);
+  }
+
+  .service-tab-btn.active {
+    background: linear-gradient(135deg, #0d9488 0%, #115e59 100%) !important;
+    color: white !important;
+    box-shadow: 0 10px 25px rgba(13, 148, 136, 0.35) !important;
+  }
+
+  .service-detail-card {
+    background: #1e293b;
+    border-radius: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3) !important;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .feature-pill {
+    background: #0f172a;
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px 16px;
+    border-radius: 50rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .highlight-badge {
+    background: rgba(13, 148, 136, 0.1);
+    color: #0d9488;
+    border: 1px solid rgba(13, 148, 136, 0.25);
+    padding: 6px 16px;
+    border-radius: 50rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-block;
+  }
+
+  .cta-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0d9488 100%);
+    border-radius: 1.5rem;
+    color: white;
+    padding: 40px;
+    margin-top: 50px;
+  }
+
+  /* Overrides for text inside cards to ensure contrast in dark mode */
+  .service-detail-card h2,
+  .service-detail-card h5 {
+    color: #f8fafc !important;
+  }
+  .service-detail-card p.text-muted {
+    color: #94a3b8 !important;
+  }
+</style>
+
+<!-- Hero Section -->
+<section class="services-hero">
+  <div class="container">
+    <span class="highlight-badge mb-3 text-uppercase tracking-wider">Comprehensive Pet Care</span>
+    <h1 class="fw-bold display-5 mb-3 text-white">Our Dedicated Clinic Services</h1>
+    <p class="lead mx-auto" style="max-width: 680px; color: #cbd5e1; font-size: 1.15rem;">
+      From routine wellness exams and preventive vaccinations to complex surgeries and luxurious grooming, explore our full spectrum of veterinary solutions.
+    </p>
+  </div>
+</section>
+
+<!-- Main Interactive Service Tabs Section -->
+<section class="py-5" style="background-color: #0f172a;">
+  <div class="container">
+
+    <!-- Nav Tabs Navigation -->
+    <ul class="nav nav-pills justify-content-center gap-2 gap-md-3 mb-5 border-0" id="serviceTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link service-tab-btn active" id="tab-checkup" data-bs-toggle="pill" data-bs-target="#content-checkup" type="button" role="tab" aria-controls="content-checkup" aria-selected="true">
+          <span>🩺</span> General Checkup
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link service-tab-btn" id="tab-vaccinations" data-bs-toggle="pill" data-bs-target="#content-vaccinations" type="button" role="tab" aria-controls="content-vaccinations" aria-selected="false">
+          <span>💉</span> Vaccinations
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link service-tab-btn" id="tab-surgery" data-bs-toggle="pill" data-bs-target="#content-surgery" type="button" role="tab" aria-controls="content-surgery" aria-selected="false">
+          <span>🏥</span> Surgery & Care
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link service-tab-btn" id="tab-grooming" data-bs-toggle="pill" data-bs-target="#content-grooming" type="button" role="tab" aria-controls="content-grooming" aria-selected="false">
+          <span>✂️</span> Pet Grooming
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="serviceTabsContent">
+
+      <!-- 1. General Checkup -->
+      <div class="tab-pane fade show active" id="content-checkup" role="tabpanel" aria-labelledby="tab-checkup">
+        <div class="service-detail-card p-4 p-md-5">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-6">
+              <span class="highlight-badge mb-3">Wellness & Prevention</span>
+              <h2 class="fw-bold mb-3" style="color: #0f172a;">General Physical Examination & Wellness</h2>
+              <p class="text-muted mb-4 fs-6" style="line-height: 1.7;">
+                Regular examinations are the cornerstone of a long, healthy life for your pets. Our comprehensive checkups assess nose-to-tail physical health, vitals, dental hygiene, weight management, and early diagnostic screening.
+              </p>
+              
+              <h5 class="fw-bold mb-3" style="color: #1e293b;">What's Included:</h5>
+              <div class="d-flex flex-wrap gap-2 mb-4">
+                <span class="feature-feature-tag feature-pill">✓ Vital Signs & Weight Check</span>
+                <span class="feature-pill">✓ Eyes, Ears & Dental Exam</span>
+                <span class="feature-pill">✓ Heart & Lung Auscultation</span>
+                <span class="feature-pill">✓ Abdominal Palpation</span>
+                <span class="feature-pill">✓ Blood & Diagnostic Screening</span>
+                <span class="feature-pill">✓ Nutritional & Behavioral Advice</span>
+              </div>
+
+              <div class="pt-2">
+                <a href="<%= role === 'customer' ? '/appointments/new' : role === 'staff' ? '/appointments' : '/login' %>" class="btn btn-primary rounded-pill px-4 py-3 fw-bold">
+                  <%= role ? 'Book Checkup Appointment' : 'Sign In to Book Appointment' %>
+                </a>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <img src="/uploads/image/general-checkup.jpg" 
+                   alt="General Pet Checkup" 
+                   class="img-fluid rounded-4 shadow-sm w-100" 
+                   style="height: 380px; object-fit: cover;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Vaccinations -->
+      <div class="tab-pane fade" id="content-vaccinations" role="tabpanel" aria-labelledby="tab-vaccinations">
+        <div class="service-detail-card p-4 p-md-5">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-6">
+              <span class="highlight-badge mb-3">Immune Defense & Protection</span>
+              <h2 class="fw-bold mb-3" style="color: #0f172a;">Immunization & Parasite Control</h2>
+              <p class="text-muted mb-4 fs-6" style="line-height: 1.7;">
+                Shield your dogs and cats against harmful bacterial and viral infections. We customize core and non-core vaccination schedules based on your pet's exact age, breed profile, lifestyle, and exposure risk.
+              </p>
+              
+              <h5 class="fw-bold mb-3" style="color: #1e293b;">Vaccination Highlights:</h5>
+              <div class="d-flex flex-wrap gap-2 mb-4">
+                <span class="feature-pill">✓ Canine DHPP & Rabies</span>
+                <span class="feature-pill">✓ Feline FVRCP & FeLV</span>
+                <span class="feature-pill">✓ Bordetella (Kennel Cough)</span>
+                <span class="feature-pill">✓ Flea, Tick & Heartworm Prevention</span>
+                <span class="feature-pill">✓ Deworming Protocols</span>
+                <span class="feature-pill">✓ Digital Immunization Records</span>
+              </div>
+
+              <div class="pt-2">
+                <a href="<%= role === 'customer' ? '/appointments/new' : role === 'staff' ? '/appointments' : '/login' %>" class="btn btn-primary rounded-pill px-4 py-3 fw-bold">
+                  <%= role ? 'Schedule Vaccine Visit' : 'Sign In to Book Appointment' %>
+                </a>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <img src="/uploads/image/vaccination.jpg" 
+                   alt="Pet Vaccinations" 
+                   class="img-fluid rounded-4 shadow-sm w-100" 
+                   style="height: 380px; object-fit: cover;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Surgery & Care -->
+      <div class="tab-pane fade" id="content-surgery" role="tabpanel" aria-labelledby="tab-surgery">
+        <div class="service-detail-card p-4 p-md-5">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-6">
+              <span class="highlight-badge mb-3">State-of-the-Art Surgical Suite</span>
+              <h2 class="fw-bold mb-3" style="color: #0f172a;">Advanced Surgical & Emergency Care</h2>
+              <p class="text-muted mb-4 fs-6" style="line-height: 1.7;">
+                Our sterile surgical theatre is equipped with advanced anesthesia monitoring, digital X-rays, and pain management protocols. We handle routine spay/neuter operations, soft tissue procedures, orthopedics, and emergency intervention.
+              </p>
+              
+              <h5 class="fw-bold mb-3" style="color: #1e293b;">Surgical Capabilities:</h5>
+              <div class="d-flex flex-wrap gap-2 mb-4">
+                <span class="feature-pill">✓ Spay & Neuter Procedures</span>
+                <span class="feature-pill">✓ Soft Tissue Surgery</span>
+                <span class="feature-pill">✓ Tumor & Mass Removals</span>
+                <span class="feature-pill">✓ Dental Extractions & Scale</span>
+                <span class="feature-pill">✓ Post-Op Monitoring & Oxygen Support</span>
+                <span class="feature-pill">✓ Multi-Parameter Vitals Monitoring</span>
+              </div>
+
+              <div class="pt-2">
+                <a href="<%= role === 'customer' ? '/appointments/new' : role === 'staff' ? '/appointments' : '/login' %>" class="btn btn-primary rounded-pill px-4 py-3 fw-bold">
+                  <%= role ? 'Request Surgical Consultation' : 'Sign In to Book Consultation' %>
+                </a>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <img src="/uploads/image/surgery.jpg" 
+                   alt="Pet Surgery Care" 
+                   class="img-fluid rounded-4 shadow-sm w-100" 
+                   style="height: 380px; object-fit: cover;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Grooming -->
+      <div class="tab-pane fade" id="content-grooming" role="tabpanel" aria-labelledby="tab-grooming">
+        <div class="service-detail-card p-4 p-md-5">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-6">
+              <span class="highlight-badge mb-3">Luxury Hygiene & Spa</span>
+              <h2 class="fw-bold mb-3" style="color: #0f172a;">Full-Service Pet Grooming & Spa</h2>
+              <p class="text-muted mb-4 fs-6" style="line-height: 1.7;">
+                Keep your pet fresh, clean, and smelling wonderful! Our professional groomers provide gentle, hypoallergenic baths, coat styling, de-shedding treatments, nail clipping, and ear cleaning tailored to all dog and cat breeds.
+              </p>
+              
+              <h5 class="fw-bold mb-3" style="color: #1e293b;">Grooming Services:</h5>
+              <div class="d-flex flex-wrap gap-2 mb-4">
+                <span class="feature-pill">✓ Therapeutic Hydrobath</span>
+                <span class="feature-pill">✓ Breed-Specific Haircuts</span>
+                <span class="feature-pill">✓ De-shedding Coat Treatments</span>
+                <span class="feature-pill">✓ Nail Trimming & Filing</span>
+                <span class="feature-pill">✓ Ear Cleaning & Sanitation</span>
+                <span class="feature-pill">✓ Hypoallergenic Conditioning</span>
+              </div>
+
+              <div class="pt-2">
+                <a href="<%= role === 'customer' ? '/appointments/new' : role === 'staff' ? '/appointments' : '/login' %>" class="btn btn-primary rounded-pill px-4 py-3 fw-bold">
+                  <%= role ? 'Book Grooming Session' : 'Sign In to Book Grooming' %>
+                </a>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <img src="/uploads/image/grooming.jpg" 
+                   alt="Pet Grooming Spa" 
+                   class="img-fluid rounded-4 shadow-sm w-100" 
+                   style="height: 380px; object-fit: cover;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom CTA Card -->
+    <div class="cta-card text-center">
+      <h3 class="fw-bold text-white mb-2">Ready to Give Your Pet Premier Care?</h3>
+      <p class="mb-4" style="color: #cbd5e1;">Our team of certified veterinary professionals is eager to welcome you and your pet.</p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="/appointments/new" class="btn btn-light rounded-pill px-4 py-3 fw-bold text-dark">Book an Appointment Now</a>
+        <a href="/" class="btn btn-outline-light rounded-pill px-4 py-3 fw-bold">Return to Home</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  // Handle URL hash tab switching (e.g. /services#vaccinations or /services#grooming)
+  document.addEventListener("DOMContentLoaded", function () {
+    const hash = window.location.hash;
+    if (hash) {
+      const cleanHash = hash.replace("#", "");
+      const targetTab = document.getElementById("tab-" + cleanHash);
+      if (targetTab) {
+        const tabTrigger = new bootstrap.Tab(targetTab);
+        tabTrigger.show();
+      }
+    }
+  });
+</script>
+</body>
+</html>
