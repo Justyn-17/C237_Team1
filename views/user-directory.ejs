@@ -270,7 +270,7 @@
                                                             </form>
                                                           <% } else if (user.status === 'deletion_requested') { %>
                                                             <!-- Standard Staff sees Approve Deletion ONLY if requested -->
-                                                            <form action="/staff/approve-deletion/<%= user.id %>" method="POST" class="m-0 p-0">
+                                                            <form action="/staff/approve-deletion/<%= user.id %>" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete this user?');" class="m-0 p-0">
                                                               <button type="submit" class="btn btn-danger btn-sm py-1 px-2 fw-bold text-nowrap">Confirm Deletion</button>
                                                             </form>
                                                           <% } %>
