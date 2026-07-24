@@ -104,83 +104,77 @@
 
                                 <!-- My Upcoming Appointments -->
                                 <% const myApptRows=typeof myAppointments !=='undefined' ? myAppointments : []; %>
-                                    <div class="card border-0 rounded-4 shadow-sm">
-                                        <div class="card-body p-4">
-                                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                                <h6 class="fw-bold mb-0">My Upcoming Schedule</h6>
-                                                <a href="/appointments"
-                                                    class="btn btn-sm btn-outline-primary rounded-pill px-3">View
-                                                    All</a>
-                                            </div>
-                                            <div class="table-responsive">
-                                                <table class="table table-striped align-middle mb-0">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th scope="col">Pet</th>
-                                                            <th scope="col">Owner</th>
-                                                            <th scope="col">Date</th>
-                                                            <th scope="col">Time</th>
-                                                            <th scope="col">Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <% if (myApptRows.length) { %>
-                                                            <% myApptRows.forEach(a=> { %>
-                                                                <tr>
-                                                                    <td>
-                                                                        <% if (a.pet_name) { %>
-                                                                            <%= a.pet_name %>
-                                                                        <% } else { %>
-                                                                            <span class="text-muted fst-italic">Deleted pet</span>
-                                                                        <% } %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <%= a.owner_name || '-' %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <%= formatDate(a.date) %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <%= formatTime(a.start_time) %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <% if (a.status==='booked' ) { %>
-                                                                            <span class="badge bg-primary">Booked</span>
-                                                                            <% } else if (a.status==='completed' ) { %>
-                                                                                <span
-                                                                                    class="badge bg-success">Completed</span>
-                                                                                <% } else if (a.status==='cancelled' ) {
-                                                                                    %>
-                                                                                    <span
-                                                                                        class="badge bg-danger">Cancelled</span>
-                                                                                    <% } else { %>
-                                                                                        <span
-                                                                                            class="badge bg-secondary">
-                                                                                            <%= a.status %>
-                                                                                        </span>
-                                                                                        <% } %>
-                                                                    </td>
-                                                                </tr>
-                                                                <% }) %>
-                                                                    <% } else { %>
-                                                                        <tr>
-                                                                            <td colspan="5"
-                                                                                class="text-center text-muted py-4">
-                                                                                No appointment data passed to this page
-                                                                                yet.
-                                                                                <br>
-                                                                                <a href="/appointments"
-                                                                                    class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
-                                                                                    View full appointments list
-                                                                                </a>
-                                                                            </td>
-                                                                        </tr>
-                                                                        <% } %>
-                                                    </tbody>
-                                                </table>
+
+                                <!-- ── Patient Schedule & Tasks ─────────────────────────────── -->
+                                <div class="row g-4 mb-4">
+                                    <div class="col-lg-8">
+                                        <div class="card bg-white border-0 shadow-sm rounded-3 h-100">
+                                            <div class="card-body p-4">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="analytics-icon" style="background:rgba(13,148,136,.18);color:#0d9488;">
+                                                            <i class="bi bi-clipboard2-pulse-fill"></i>
+                                                        </span>
+                                                        <div class="d-flex align-items-center">
+                                                            <h6 class="fw-bold mb-0 text-dark">My Clinical Schedule</h6>
+                                                            <input type="date" id="queueDateFilter" class="form-control form-control-sm w-auto d-inline-block ms-3" value="<%= new Date().toLocaleDateString('en-CA') %>">
+                                                        </div>
+                                                    </div>
+                                                    <span class="badge rounded-pill px-3 py-2" id="queueCountBadge" style="background:#0d9488;font-size:.8rem;">
+                                                        0 patients
+                                                    </span>
+                                                </div>
+
+                                                <div class="table-responsive">
+                                                    <table class="table table-hover align-middle mb-0 queue-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Time</th>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Patient</th>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Owner</th>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Chief Complaint</th>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Clinical Alerts</th>
+                                                                <th style="color:#64748b;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="queueTableBody">
+                                                            <!-- Dynamic rows rendered by JS -->
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="col-lg-4">
+                                        <div class="card bg-white border-0 shadow-sm rounded-3 h-100">
+                                            <div class="card-body p-4">
+                                                <div class="d-flex align-items-center gap-2 mb-3">
+                                                    <span class="analytics-icon" style="background:rgba(245,158,11,.18);color:#d97706;">
+                                                        <i class="bi bi-list-check"></i>
+                                                    </span>
+                                                    <h6 class="fw-bold mb-0 text-dark">Today's Clinical Tasks</h6>
+                                                </div>
+                                                <ul class="list-group list-group-flush" id="clinicalTasksList">
+                                                    <% if (typeof clinicalTasks !== 'undefined' && clinicalTasks.length > 0) { %>
+                                                        <% clinicalTasks.forEach(task => { %>
+                                                            <li class="list-group-item px-0 border-0 d-flex align-items-start gap-3 task-item transition-all" id="task-<%= task.id %>">
+                                                                <input class="form-check-input task-checkbox mt-1 flex-shrink-0" type="checkbox" data-task-id="<%= task.id %>" data-appt-id="<%= task.appointment_id || '' %>" aria-label="Complete task">
+                                                                <span class="text-dark"><%= task.description %></span>
+                                                            </li>
+                                                        <% }) %>
+                                                    <% } else { %>
+                                                        <div class="text-muted fst-italic py-3 text-center">
+                                                            All caught up for today!
+                                                        </div>
+                                                    <% } %>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- ── /Patient Schedule & Tasks ─────────────────────────────── -->
+
+
 
                     </div>
                 </main>
@@ -203,6 +197,73 @@
                 background: #0d9488 !important;
                 color: #ffffff !important;
                 border-color: #0d9488 !important;
+            }
+
+            .analytics-icon {
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.05rem;
+                flex-shrink: 0;
+            }
+            .queue-table th {
+                border-bottom: 1px solid rgba(148,163,184,0.15);
+                padding-bottom: .6rem;
+            }
+            .queue-table td { border-color: rgba(148,163,184,0.10); }
+            .queue-row:hover td { background: rgba(255,255,255,.03); }
+            /* Status select styling */
+            .queue-status-wrapper {
+                display: flex;
+                align-items: center;
+                gap: .5rem;
+            }
+            .queue-status-select {
+                border: 1.5px solid;
+                border-radius: 999px;
+                padding: .3rem .9rem;
+                font-size: .78rem;
+                font-weight: 600;
+                cursor: pointer;
+                appearance: none;
+                -webkit-appearance: none;
+                outline: none;
+                transition: background .18s, border-color .18s, color .18s;
+                min-width: 155px;
+                text-align: center;
+            }
+            /* Colour states */
+            .queue-status-select[data-status="booked"] {
+                background: rgba(248,250,252,1);
+                border-color: #cbd5e1;
+                color: #334155;
+            }
+            .queue-status-select[data-status="waiting"] {
+                background: rgba(245,158,11,.15);
+                border-color: #f59e0b;
+                color: #d97706;
+            }
+            .queue-status-select[data-status="in_consultation"] {
+                background: rgba(56,189,248,.13);
+                border-color: #38bdf8;
+                color: #0284c7;
+            }
+            .queue-status-select[data-status="labs_pending"] {
+                background: rgba(148,163,184,.12);
+                border-color: #64748b;
+                color: #475569;
+            }
+            .queue-status-select[data-status="completed"] {
+                background: rgba(34,197,94,.13);
+                border-color: #22c55e;
+                color: #16a34a;
+            }
+            .queue-status-select option {
+                background: #ffffff;
+                color: #1e293b;
             }
         </style>
 
@@ -302,6 +363,318 @@
             });
         </script>
 
-        </body>
+        <script>
+        // ── Dynamic Patient Schedule Logic ────────────────────────────────────────
+        
+        function formatTimeJS(timeStr) {
+            if (!timeStr) return '';
+            const [hours, minutes] = timeStr.split(':');
+            const d = new Date();
+            d.setHours(hours, minutes, 0);
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
 
+        function renderQueueTable(rows) {
+            const tbody = document.getElementById('queueTableBody');
+            const badge = document.getElementById('queueCountBadge');
+            
+            badge.textContent = `${rows.length} patient${rows.length !== 1 ? 's' : ''}`;
+            
+            if (rows.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-calendar-x" style="font-size:2.5rem;color:#94a3b8;"></i>
+                            <p class="mt-3 mb-1" style="color:#475569;font-weight:600;">No appointments scheduled for this date</p>
+                            <p class="small" style="color:#64748b;">Try selecting another date to view the queue.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const html = rows.map(q => {
+                const rawReason = (q.reason || '').trim();
+                const isEmptyReason = !rawReason || rawReason === 'nil' || rawReason === '—' || rawReason === '-';
+                
+                const reasonHtml = isEmptyReason 
+                    ? `<span class="text-muted fst-italic">No reason provided</span>`
+                    : `<span class="text-dark">${rawReason}</span>`;
+
+                const petHtml = q.pet_name 
+                    ? `<span class="d-flex align-items-center gap-1"><i class="bi bi-heart-pulse" style="color:#0d9488;"></i>${q.pet_name}</span>`
+                    : `<span class="text-muted fst-italic">Deleted pet</span>`;
+
+                const ownerHtml = q.owner_name || '&mdash;';
+                
+                return `
+                    <tr class="queue-row ${q.clinical_status === 'labs_pending' ? 'table-warning' : ''}" data-appt-id="${q.id}">
+                        <td class="fw-semibold text-dark" style="white-space:nowrap;">
+                            ${formatTimeJS(q.start_time)}
+                        </td>
+                        <td class="text-dark">${petHtml}</td>
+                        <td class="text-dark">${ownerHtml}</td>
+                        <td style="max-width:200px;" class="text-truncate">${reasonHtml}</td>
+                        <td class="clinical-alerts-cell">
+                            ${q.clinical_status === 'labs_pending' 
+                                ? '<span class="badge bg-warning text-dark"><i class="bi bi-droplet me-1"></i>Awaiting Labs</span>'
+                                : '<span class="text-muted fst-italic">—</span>'
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <a href="/vet/record/${q.id}" class="btn btn-sm btn-outline-secondary" title="View Full Record"><i class="bi bi-eye"></i></a>
+                                <button class="btn btn-sm btn-outline-primary vitals-btn" data-bs-toggle="modal" data-bs-target="#vitalsModal" data-appt-id="${q.id}" title="Log Vitals"><i class="bi bi-heart-pulse"></i></button>
+                                <button class="btn btn-sm btn-outline-warning request-labs-btn" data-appt-id="${q.id}" title="Request Lab Work"><i class="bi bi-droplet"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            tbody.innerHTML = html;
+        }
+
+        function fetchQueueForDate(dateStr) {
+            fetch(`/api/vet/queue?date=${encodeURIComponent(dateStr)}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(data => {
+                    renderQueueTable(data.queue || []);
+                })
+                .catch(err => console.error('Failed to fetch queue:', err));
+        }
+
+        const dateFilter = document.getElementById('queueDateFilter');
+        dateFilter.addEventListener('change', (e) => {
+            fetchQueueForDate(e.target.value);
+        });
+
+        // Load initially
+        fetchQueueForDate(dateFilter.value);
+
+        // ──────────────────────────────────────────────────────────────────────
+        // ── Interactive Actions Logic ─────────────────────────────────────────
+
+        // 1. Task Board Checkboxes
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('task-checkbox')) {
+                const taskId = e.target.getAttribute('data-task-id');
+                const li = e.target.closest('li');
+                e.target.disabled = true;
+
+                fetch(`/api/tasks/${taskId}/complete`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(() => {
+                    // Apply visual strikethrough and fade
+                    li.querySelector('span').classList.add('text-decoration-line-through', 'text-muted');
+                    li.style.opacity = '0.4';
+                    setTimeout(() => { li.style.display = 'none'; }, 800);
+
+                    // Remove yellow highlight from the clinical schedule if applicable
+                    const associatedApptId = e.target.getAttribute('data-appt-id');
+                    if (associatedApptId) {
+                        const row = document.querySelector(`tr[data-appt-id="${associatedApptId}"]`);
+                        if (row) {
+                            row.classList.remove('table-warning');
+                            const alertCell = row.querySelector('.clinical-alerts-cell');
+                            if (alertCell) {
+                                alertCell.innerHTML = '<span class="text-muted fst-italic">—</span>';
+                            }
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to complete task:', err);
+                    alert('Could not complete task. Please try again.');
+                    e.target.disabled = false;
+                });
+            }
+        });
+
+        // 2. Request Labs State Change
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.request-labs-btn');
+            if (btn) {
+                const apptId = btn.getAttribute('data-appt-id');
+                btn.disabled = true;
+
+                fetch(`/vet/api/appointments/${apptId}/clinical-status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'labs_pending' })
+                })
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(data => {
+                    const row = btn.closest('tr');
+                    row.classList.add('table-warning');
+                    row.querySelector('.clinical-alerts-cell').innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-droplet me-1"></i>Awaiting Labs</span>';
+                    
+                    if (data.taskGenerated && data.task && data.task.id) {
+                        const taskList = document.getElementById('clinicalTasksList');
+                        const emptyState = taskList.querySelector('.text-muted.fst-italic');
+                        if (emptyState) emptyState.remove();
+
+                        const newTaskHTML = `
+                            <li class="list-group-item px-0 border-0 d-flex align-items-start gap-3 task-item transition-all" id="task-${data.task.id}">
+                                <input class="form-check-input task-checkbox mt-1 flex-shrink-0" type="checkbox" data-task-id="${data.task.id}" data-appt-id="${apptId}" aria-label="Complete task">
+                                <span class="text-dark">${data.task.description}</span>
+                            </li>
+                        `;
+                        taskList.insertAdjacentHTML('beforeend', newTaskHTML);
+                    }
+
+                    document.getElementById('actionToastBody').innerHTML = "🧪 Lab requested and task generated.";
+                    const toast = new bootstrap.Toast(document.getElementById('actionToast'));
+                    toast.show();
+                })
+                .catch(err => {
+                    console.error('Failed to request labs:', err);
+                    alert('Could not update status. Please try again.');
+                    btn.disabled = false;
+                });
+            }
+        });
+
+        // 3. Vitals Modal Logic
+        const vitalsModalEl = document.getElementById('vitalsModal');
+        let activeVitalsBtn = null;
+        if (vitalsModalEl) {
+            vitalsModalEl.addEventListener('show.bs.modal', function (event) {
+                activeVitalsBtn = event.relatedTarget; // Element that triggered the modal
+                if (!activeVitalsBtn) return; // Safety check
+
+                let apptId = activeVitalsBtn.getAttribute('data-appt-id');
+                
+                // If clicked on an inner element like <i>, fallback to the closest element with the data attribute
+                if (!apptId && activeVitalsBtn.closest && activeVitalsBtn.closest('[data-appt-id]')) {
+                    apptId = activeVitalsBtn.closest('[data-appt-id]').getAttribute('data-appt-id');
+                }
+
+                const form = document.getElementById('vitalsForm');
+                const submitBtn = document.getElementById('vitalsSubmitBtn');
+                
+                if (form) form.reset();
+                if (document.getElementById('vitalsApptId')) document.getElementById('vitalsApptId').value = apptId;
+                if (document.getElementById('vitalsSuccessAlert')) document.getElementById('vitalsSuccessAlert').style.display = 'none';
+                if (submitBtn) submitBtn.textContent = 'Save Vitals';
+                
+                if (!apptId) {
+                    console.error("No apptId found on trigger button.");
+                    return;
+                }
+
+                // Fetch existing vitals
+                fetch(`/vet/api/appointments/${apptId}/vitals`)
+                    .then(r => r.ok ? r.json() : {})
+                    .then(data => {
+                        if (data.weight || data.temperature || data.observations) {
+                            document.getElementById('vitalsWeight').value = data.weight || '';
+                            document.getElementById('vitalsTemp').value = data.temperature || '';
+                            document.getElementById('vitalsObs').value = data.observations || '';
+                            if (submitBtn) submitBtn.textContent = 'Update Vitals';
+                        }
+                    })
+                    .catch(err => console.error('Failed to fetch existing vitals:', err));
+            });
+
+            document.getElementById('vitalsForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                const apptId = document.getElementById('vitalsApptId').value;
+                const submitBtn = document.getElementById('vitalsSubmitBtn');
+                submitBtn.disabled = true;
+
+                const data = {
+                    weight: document.getElementById('vitalsWeight').value,
+                    temperature: document.getElementById('vitalsTemp').value,
+                    observations: document.getElementById('vitalsObs').value
+                };
+
+                fetch(`/vet/api/appointments/${apptId}/vitals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(() => {
+                    if (activeVitalsBtn) {
+                        activeVitalsBtn.classList.remove('btn-outline-primary');
+                        activeVitalsBtn.classList.add('btn-success', 'text-white');
+                    }
+                    
+                    document.getElementById('vitalsSuccessAlert').style.display = 'block';
+                    
+                    document.getElementById('actionToastBody').innerHTML = "✅ Vitals saved successfully.";
+                    const toast = new bootstrap.Toast(document.getElementById('actionToast'));
+                    toast.show();
+                    
+                    setTimeout(() => {
+                        const modal = bootstrap.Modal.getInstance(vitalsModalEl);
+                        modal.hide();
+                        submitBtn.disabled = false;
+                    }, 1200);
+                })
+                .catch(err => {
+                    console.error('Failed to save vitals:', err);
+                    alert('Could not save vitals. Please try again.');
+                    submitBtn.disabled = false;
+                });
+            });
+        }
+        // ──────────────────────────────────────────────────────────────────────
+        </script>
+
+        <!-- Quick-Entry Vitals Modal -->
+        <div class="modal fade" id="vitalsModal" tabindex="-1" aria-labelledby="vitalsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header border-bottom-0 bg-light">
+                        <h5 class="modal-title fw-bold" id="vitalsModalLabel">Log Vitals</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="vitalsSuccessAlert" class="alert alert-success py-2 mb-3" style="display: none; font-size: 0.9rem;">
+                            <i class="bi bi-check-circle-fill me-1"></i> Vitals saved successfully!
+                        </div>
+                        <form id="vitalsForm">
+                            <input type="hidden" id="vitalsApptId" name="apptId">
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">Weight (kg)</label>
+                                    <input type="number" step="0.01" class="form-control" id="vitalsWeight" placeholder="e.g. 15.5" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">Temperature (°C)</label>
+                                    <input type="number" step="0.1" class="form-control" id="vitalsTemp" placeholder="e.g. 38.5" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Observations</label>
+                                <textarea class="form-control" id="vitalsObs" rows="3" placeholder="Brief notes on patient's condition..."></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary" id="vitalsSubmitBtn">Save Vitals</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+            <div id="actionToast" class="toast align-items-center text-bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body fw-semibold ps-3" id="actionToastBody">
+                        Action successful!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+
+        </body>
         </html>

@@ -36,6 +36,69 @@
             -->
           <% const totalPetsCount=typeof totalPets !=='undefined' ? totalPets : null; %>
             <% const apptTodayCount=typeof appointmentsToday !=='undefined' ? appointmentsToday : null; %>
+            <%
+              const kpiRev   = typeof kpiRevenue        !== 'undefined' ? kpiRevenue        : null;
+              const kpiWeek  = typeof kpiWeekAppts      !== 'undefined' ? kpiWeekAppts      : null;
+              const kpiPat   = typeof kpiActivePatients !== 'undefined' ? kpiActivePatients : null;
+              const kpiVets  = typeof kpiVetsOnDuty     !== 'undefined' ? kpiVetsOnDuty     : null;
+            %>
+
+          <!-- ── KPI Ribbon ──────────────────────────────────────────────── -->
+          <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+              <div class="card bg-white h-100 border-0 shadow-sm rounded-3">
+                <div class="card-body d-flex align-items-center gap-3">
+                  <div class="kpi-icon" style="background:rgba(13,148,136,.2);color:#0d9488;">
+                    <i class="bi bi-cash-stack"></i>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Revenue (This Month)</div>
+                    <div class="kpi-value fw-bold text-dark fs-3" id="kpi-revenue"><%= kpiRev !== null ? '$' + Number(kpiRev).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0' %></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card bg-white h-100 border-0 shadow-sm rounded-3">
+                <div class="card-body d-flex align-items-center gap-3">
+                  <div class="kpi-icon" style="background:rgba(99,102,241,.2);color:#4f46e5;">
+                    <i class="bi bi-calendar-week"></i>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Appointments (This Week)</div>
+                    <div class="kpi-value fw-bold text-dark fs-3" id="kpi-week-appts"><%= kpiWeek !== null ? kpiWeek : '0' %></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card bg-white h-100 border-0 shadow-sm rounded-3">
+                <div class="card-body d-flex align-items-center gap-3">
+                  <div class="kpi-icon" style="background:rgba(245,158,11,.2);color:#d97706;">
+                    <i class="bi bi-people-fill"></i>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Active Patients</div>
+                    <div class="kpi-value fw-bold text-dark fs-3" id="kpi-active-patients"><%= kpiPat !== null ? kpiPat : '0' %></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card bg-white h-100 border-0 shadow-sm rounded-3">
+                <div class="card-body d-flex align-items-center gap-3">
+                  <div class="kpi-icon" style="background:rgba(34,197,94,.2);color:#16a34a;">
+                    <i class="bi bi-person-badge-fill"></i>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Vets on Duty</div>
+                    <div class="kpi-value fw-bold text-dark fs-3" id="kpi-vets"><%= kpiVets !== null ? kpiVets : '0' %></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ── /KPI Ribbon ─────────────────────────────────────────────── -->
 
               <div class="row g-4 mb-4">
                 <div class="col-md-6 col-lg-3">
@@ -103,81 +166,48 @@
                 </div>
               </div>
 
-              <!--
-                Appointments Table
-                Same column layout/styling as views/appointments_index.ejs. The dashboard
-                route doesn't pass an `appointments` array yet, so this falls back to an
-                empty state with a link to the full /appointments page rather than erroring.
-            -->
-              <% const apptRows=typeof appointments !=='undefined' ? appointments : []; %>
-                <div class="card border-0 rounded-4 shadow-sm">
-                  <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h6 class="fw-bold mb-0">Recent Clinic Activity</h6>
-                      <a href="/appointments" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All</a>
-                    </div>
-                    <div class="table-responsive">
-                      <table class="table table-striped align-middle mb-0">
-                        <thead class="table-light">
-                          <tr>
-                            <th scope="col">Pet</th>
-                            <th scope="col">Owner</th>
-                            <th scope="col">Date</th>
-                            <th scope="col">Time</th>
-                            <th scope="col">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody id="recentActivityBody">
-                          <% if (apptRows.length) { %>
-                            <% apptRows.forEach(a=> { %>
-                              <tr>
-                                <td>
-                                  <% if (a.pet_name) { %>
-                                    <%= a.pet_name %>
-                                  <% } else { %>
-                                    <span class="text-muted fst-italic">Deleted pet</span>
-                                  <% } %>
-                                </td>
-                                <td>
-                                  <%= a.owner_name || '-' %>
-                                </td>
-                                <td>
-                                  <%= formatDate(a.date) %>
-                                </td>
-                                <td>
-                                  <%= formatTime(a.start_time) %>
-                                </td>
-                                <td>
-                                  <% if (a.status==='booked' ) { %>
-                                    <span class="badge bg-primary">Booked</span>
-                                    <% } else if (a.status==='completed' ) { %>
-                                      <span class="badge bg-success">Completed</span>
-                                      <% } else if (a.status==='cancelled' ) { %>
-                                        <span class="badge bg-danger">Cancelled</span>
-                                        <% } else { %>
-                                          <span class="badge bg-secondary">
-                                            <%= a.status %>
-                                          </span>
-                                          <% } %>
-                                </td>
-                              </tr>
-                              <% }) %>
-                                <% } else { %>
-                                  <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                      No appointment data passed to this page yet.
-                                      <br>
-                                      <a href="/appointments" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
-                                        View full appointments list
-                                      </a>
-                                    </td>
-                                  </tr>
-                                  <% } %>
-                        </tbody>
-                      </table>
+              <!-- ── Analytics Row: Revenue Doughnut + Workload Bar ──────────── -->
+              <div class="row g-4 mb-4">
+
+                <!-- Revenue by Service Type -->
+                <div class="col-lg-6">
+                  <div class="card bg-white border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-body p-4">
+                      <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="analytics-icon" style="background:rgba(13,148,136,.18);color:#0d9488;">
+                          <i class="bi bi-pie-chart-fill"></i>
+                        </span>
+                        <h6 class="fw-bold mb-0 text-dark">Revenue by Service Type</h6>
+                      </div>
+                      <div id="revenueEmptyState" class="text-center py-4" style="display:none;">
+                        <i class="bi bi-receipt text-muted" style="font-size:2rem;"></i>
+                        <p class="text-muted mt-2 small">No paid invoices yet.<br>Revenue will appear once payments are processed.</p>
+                      </div>
+                      <canvas id="revenueDoughnutChart" style="max-height:300px;"></canvas>
                     </div>
                   </div>
                 </div>
+
+                <!-- Staff Workload Distribution -->
+                <div class="col-lg-6">
+                  <div class="card bg-white border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-body p-4">
+                      <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="analytics-icon" style="background:rgba(13,148,136,.18);color:#0d9488;">
+                          <i class="bi bi-bar-chart-fill"></i>
+                        </span>
+                        <h6 class="fw-bold mb-0 text-dark">Staff Workload Distribution</h6>
+                      </div>
+                      <div id="workloadEmptyState" class="text-center py-4" style="display:none;">
+                        <i class="bi bi-people text-muted" style="font-size:2rem;"></i>
+                        <p class="text-muted mt-2 small">No appointment data found.<br>Workload will appear once appointments are booked.</p>
+                      </div>
+                      <canvas id="workloadBarChart" style="max-height:300px;"></canvas>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
 
         </div>
       </main>
@@ -200,6 +230,34 @@
       background: #0d9488 !important;
       color: #ffffff !important;
       border-color: #0d9488 !important;
+    }
+    /* ── KPI Ribbon Cards ─────────────────────────────────────────── */
+    .kpi-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .kpi-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .analytics-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
     }
   </style>
 
@@ -293,93 +351,199 @@
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 20 } }
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 20, color: '#374151' }
+          },
+          tooltip: {
+            backgroundColor: '#ffffff',
+            titleColor: '#1e293b',
+            bodyColor: '#475569',
+            borderColor: '#e2e8f0',
+            borderWidth: 1
+          }
         }
       }
     });
 
-    function fetchRecentActivity() {
-      fetch('/api/recent-activity')
-        .then(response => response.json())
-        .then(data => {
-          const tbody = document.getElementById('recentActivityBody');
-          if (!tbody) return;
+    // ── Revenue Doughnut Chart ─────────────────────────────────────────────
+    let revenueChartInstance = null;
+    function loadRevenueChart() {
+      const BG_CLR = '#ffffff';
+      const LEGEND_CLR = '#374151';
+      // Curated light-mode palette
+      const PALETTE = [
+        '#0d9488', '#14b8a6', '#2dd4bf', '#0ea5e9', '#6366f1',
+        '#f59e0b', '#f97316', '#ec4899', '#8b5cf6', '#34d399'
+      ];
 
-          if (data.length === 0) {
-            tbody.innerHTML = `
-              <tr>
-                <td colspan="5" class="text-center text-muted py-4">
-                  No appointment data passed to this page yet.
-                  <br>
-                  <a href="/appointments" class="btn btn-primary btn-sm mt-2 rounded-pill px-3">
-                    View full appointments list
-                  </a>
-                </td>
-              </tr>
-            `;
+      const revenueCtx = document.getElementById('revenueDoughnutChart');
+
+      fetch('/api/analytics/revenue')
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(({ labels, data }) => {
+          if (!labels.length) {
+            document.getElementById('revenueEmptyState').style.display = '';
+            revenueCtx.style.display = 'none';
+            return;
+          }
+          document.getElementById('revenueEmptyState').style.display = 'none';
+          revenueCtx.style.display = '';
+
+          if (revenueChartInstance) {
+            revenueChartInstance.data.labels = labels;
+            revenueChartInstance.data.datasets[0].data = data;
+            revenueChartInstance.update();
             return;
           }
 
-          // Names come from user input, so escape them before building the row HTML
-          const esc = (v) => String(v).replace(/[&<>"']/g, c => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-          }[c]));
-
-          // Match the server-side formatDate/formatTime output. Uses LOCAL date
-          // parts so an ISO string from JSON isn't shifted a day by the timezone.
-          const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          const fmtDate = (v) => {
-            if (!v) return '—';
-            const d = new Date(v);
-            if (isNaN(d.getTime())) return String(v);
-            return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
-          };
-          const fmtTime = (v) => {
-            if (!v) return '—';
-            const m = String(v).match(/^(\d{1,2}):(\d{2})/);
-            if (!m) return String(v);
-            let h = parseInt(m[1], 10);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            h = h % 12 || 12;
-            return `${h}:${m[2]} ${ampm}`;
-          };
-
-          tbody.innerHTML = data.map(a => {
-            // A missing pet_name means the pet record was deleted — show that
-            // rather than a raw ID the staff can't do anything with.
-            const petDisplay = a.pet_name
-              ? esc(a.pet_name)
-              : '<span class="text-muted fst-italic">Deleted pet</span>';
-            const ownerDisplay = a.owner_name ? esc(a.owner_name) : '-';
-            const dateStr = fmtDate(a.date);
-            const timeStr = fmtTime(a.start_time);
-
-            let statusBadge = '';
-            if (a.status === 'booked') {
-              statusBadge = '<span class="badge bg-primary">Booked</span>';
-            } else if (a.status === 'completed') {
-              statusBadge = '<span class="badge bg-success">Completed</span>';
-            } else if (a.status === 'cancelled') {
-              statusBadge = '<span class="badge bg-danger">Cancelled</span>';
-            } else {
-              statusBadge = `<span class="badge bg-secondary">${a.status}</span>`;
+          revenueChartInstance = new Chart(revenueCtx, {
+            type: 'doughnut',
+            data: {
+              labels,
+              datasets: [{
+                data,
+                backgroundColor: PALETTE.slice(0, labels.length),
+                borderColor: BG_CLR,
+                borderWidth: 3,
+                hoverOffset: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              cutout: '62%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { color: LEGEND_CLR, boxWidth: 14, padding: 14, font: { size: 12 } }
+                },
+                tooltip: {
+                  backgroundColor: '#ffffff',
+                  titleColor: '#1e293b',
+                  bodyColor: '#475569',
+                  borderColor: '#e2e8f0',
+                  borderWidth: 1,
+                  callbacks: {
+                    label: (ctx) => ` $${Number(ctx.parsed).toFixed(2)}`
+                  }
+                }
+              }
             }
-
-            return `
-              <tr>
-                <td>${petDisplay}</td>
-                <td>${ownerDisplay}</td>
-                <td>${dateStr}</td>
-                <td>${timeStr}</td>
-                <td>${statusBadge}</td>
-              </tr>
-            `;
-          }).join('');
+          });
         })
-        .catch(err => console.error('Error fetching recent activity:', err));
+        .catch(err => console.error('Revenue chart error:', err));
+    }
+    loadRevenueChart();
+
+    // ── Staff Workload Horizontal Bar Chart ───────────────────────────────
+    let workloadChartInstance = null;
+    function loadWorkloadChart() {
+      const TICK_CLR  = '#475569';
+      const GRID_CLR  = 'rgba(0,0,0,0.05)';
+
+      const workloadCtx = document.getElementById('workloadBarChart');
+
+      fetch('/api/analytics/workload')
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(({ labels, data }) => {
+          if (!labels.length) {
+            document.getElementById('workloadEmptyState').style.display = '';
+            workloadCtx.style.display = 'none';
+            return;
+          }
+          document.getElementById('workloadEmptyState').style.display = 'none';
+          workloadCtx.style.display = '';
+
+          if (workloadChartInstance) {
+            workloadChartInstance.data.labels = labels;
+            workloadChartInstance.data.datasets[0].data = data;
+            workloadChartInstance.update();
+            return;
+          }
+
+          workloadChartInstance = new Chart(workloadCtx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Appointments',
+                data,
+                backgroundColor: '#0d9488',
+                hoverBackgroundColor: '#14b8a6',
+                borderRadius: 6,
+                borderSkipped: false
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              animation: { duration: 500, easing: 'easeInOutQuart' },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  backgroundColor: '#ffffff',
+                  titleColor: '#1e293b',
+                  bodyColor: '#475569',
+                  borderColor: '#e2e8f0',
+                  borderWidth: 1
+                }
+              },
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  ticks: { color: TICK_CLR, precision: 0 },
+                  grid: { color: GRID_CLR }
+                },
+                y: {
+                  ticks: { color: TICK_CLR },
+                  grid: { color: GRID_CLR }
+                }
+              }
+            }
+          });
+        })
+        .catch(err => console.error('Workload chart error:', err));
+    }
+    loadWorkloadChart();
+
+    // ── Real-time Polling for Global Stats ──────────────────────────────────
+    function fetchAndRenderKPIs() {
+      fetch('/api/analytics/kpis')
+        .then(r => {
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        })
+        .then(data => {
+          const revSpan = document.getElementById('kpi-revenue');
+          if(revSpan && data.revenue !== undefined) {
+             revSpan.textContent = '$' + Number(data.revenue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+          }
+          
+          const weekSpan = document.getElementById('kpi-week-appts');
+          if(weekSpan && data.weekAppts !== undefined) weekSpan.textContent = data.weekAppts;
+          
+          const activeSpan = document.getElementById('kpi-active-patients');
+          if(activeSpan && data.activePatients !== undefined) activeSpan.textContent = data.activePatients;
+          
+          const vetsSpan = document.getElementById('kpi-vets');
+          if(vetsSpan && data.vetsOnDuty !== undefined) vetsSpan.textContent = data.vetsOnDuty;
+        })
+        .catch(err => {
+            console.error('Failed to fetch KPIs:', err);
+            // Abort DOM update on error
+            return;
+        });
     }
 
-    setInterval(fetchRecentActivity, 10000);
+    document.addEventListener('DOMContentLoaded', fetchAndRenderKPIs);
+
+    setInterval(() => {
+      fetchAndRenderKPIs();
+      loadRevenueChart();
+      loadWorkloadChart();
+    }, 15000);
+    // ──────────────────────────────────────────────────────────────────────
+
   </script>
 
   </body>
